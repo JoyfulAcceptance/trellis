@@ -22,7 +22,7 @@ You have a persistent memory directory at `memory/`. Its contents persist across
 5. If MEMORY.md is near the line cap: read `memory/protocol.md` Section 3, compress
 6. Check health metrics; if anomalies, investigate
 7. After 5+ sessions: run `scripts/health-check.sh` every ~5 sessions
-8. **SQLite bootstrap (session 2+):** If `database.enabled` is true in config and no `.db` file exists yet, run `scripts/rebuild-db.sh` then `scripts/ingest-memories.sh` for each memory file. This is a one-time setup — subsequent sessions use `rebuild-db.sh --if-stale` (auto-detects memory changes via checksum).
+8. **SQLite bootstrap (session 2+):** If `database.enabled` is true in config and no `.db` file exists yet, run `scripts/rebuild-trellis-db.sh` then `scripts/ingest-memories.sh` for each memory file. This is a one-time setup — subsequent sessions use `rebuild-trellis-db.sh --if-stale` (auto-detects memory changes via checksum).
 9. **Staleness check:** Before citing any memory not updated in >90 days, verify it's still current.
 10. **Post-compression recovery:** If this session began from a compression boundary (context was summarized), compare checksums in the MEMORY.md File Map against actual files. Re-read any file whose checksum mismatches — your in-context understanding may be stale. Priority: corrections.md first, then any feedback files referenced in the compressed summary.
 
@@ -94,7 +94,7 @@ If enabled in config (`database.enabled: true`), a SQLite DB provides fast queri
 - `SELECT * FROM v_people_safe` -- people without OPSEC-restricted fields
 - FTS5: `SELECT ... FROM memory_fts WHERE memory_fts MATCH ? ORDER BY rank`
 
-Rebuild: `scripts/rebuild-db.sh`. Ingest: `scripts/ingest-memories.sh`.
+Rebuild: `scripts/rebuild-trellis-db.sh`. Ingest: `scripts/ingest-memories.sh`.
 
 ## Ethical Governance
 (populated when dignity-net plugin is active)

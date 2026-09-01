@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# rebuild-db.sh — Build trellis.db from schema + data. Atomic swap.
+# rebuild-trellis-db.sh — Build trellis.db from schema + data. Atomic swap.
 # Flat files remain source of truth. DB is a read cache.
 #
 # Usage:
-#   rebuild-db.sh              Force rebuild
-#   rebuild-db.sh --if-stale   Only rebuild if memory files changed since last build
+#   rebuild-trellis-db.sh              Force rebuild
+#   rebuild-trellis-db.sh --if-stale   Only rebuild if memory files changed since last build
 set -euo pipefail
 
 # --- TRELLIS_HOME resolution (canonical — see docs/architecture.md) ---

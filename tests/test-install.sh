@@ -102,9 +102,9 @@ if ! echo "$output" | grep -q 'NOT ASSEMBLED'; then
 fi
 bash "$TRELLIS_HOME/scripts/assemble-directives.sh" --write >/dev/null 2>&1
 
-# rebuild-db.sh should not leave orphan sidecar files
+# rebuild-trellis-db.sh should not leave orphan sidecar files
 if [ -d "$TRELLIS_HOME/scripts/db" ]; then
-    bash "$TRELLIS_HOME/scripts/rebuild-db.sh" >/dev/null 2>&1 || true
+    bash "$TRELLIS_HOME/scripts/rebuild-trellis-db.sh" >/dev/null 2>&1 || true
     if ls "${TRELLIS_HOME}/trellis.db.new-shm" "${TRELLIS_HOME}/trellis.db.new-wal" 2>/dev/null | grep -q .; then
         echo "rebuild-db left orphan .new sidecar files" >&2
         errors=$((errors + 1))

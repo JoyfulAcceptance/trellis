@@ -27,7 +27,7 @@ Trellis memory repo on GitHub:
        cp -r /tmp/trellis-install/template/plugins/ "$HOME/.trellis/plugins/"
        chmod +x "$HOME/.trellis/scripts/"*.sh
        # Rebuild SQLite cache
-       bash "$HOME/.trellis/scripts/rebuild-db.sh"
+       bash "$HOME/.trellis/scripts/rebuild-trellis-db.sh"
        # Mark GitHub as configured (clone already set origin)
        touch "$HOME/.trellis/.github-setup-complete"
        # Skip to Step 4 (wire platform) — memory is already populated
@@ -173,7 +173,7 @@ During install on Codex:
 - Skip hook wiring (Codex has no SessionEnd hooks — the AI follows shutdown directives)
 
 The SQLite acceleration layer works well on Codex: it's a deterministic cache rebuilt
-from flat files each session via `scripts/rebuild-db.sh`.
+from flat files each session via `scripts/rebuild-trellis-db.sh`.
 
 ## Updates
 

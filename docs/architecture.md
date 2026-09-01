@@ -85,7 +85,7 @@ verbatim into each script (no external sourcing — each script is self-containe
 |   +-- topology-check.sh      Governance axis count
 |   +-- assemble-directives.sh Plugin directives assembly
 |   +-- wire-platform.sh       Activation block generator
-|   +-- rebuild-db.sh          SQLite DB rebuild (optional)
+|   +-- rebuild-trellis-db.sh          SQLite DB rebuild (optional)
 |   +-- ingest-memories.sh     .md -> SQL parser (optional)
 |   +-- db/
 |       +-- schema.sql          DB schema

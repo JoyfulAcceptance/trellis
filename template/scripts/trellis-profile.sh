@@ -296,8 +296,8 @@ SYSDEFAULTS
     fi
 
     # Auto-rebuild DB if memory files changed (self-healing staleness detection)
-    if [ -x "$TRELLIS/scripts/rebuild-db.sh" ]; then
-        bash "$TRELLIS/scripts/rebuild-db.sh" --if-stale 2>/dev/null || true
+    if [ -x "$TRELLIS/scripts/rebuild-trellis-db.sh" ]; then
+        bash "$TRELLIS/scripts/rebuild-trellis-db.sh" --if-stale 2>/dev/null || true
     fi
 
     # Commit if git available. A profile switch legitimately removes top-level

@@ -68,7 +68,7 @@ fi
 
 # TRELLIS_HOME resolution function is identical across all scripts
 canonical="resolve_trellis_home"
-for s in "$T"/scripts/memory-sync.sh "$T"/scripts/health-check.sh "$T"/scripts/topology-check.sh "$T"/scripts/assemble-directives.sh "$T"/scripts/wire-platform.sh "$T"/scripts/rebuild-db.sh "$T"/scripts/ingest-memories.sh; do
+for s in "$T"/scripts/memory-sync.sh "$T"/scripts/health-check.sh "$T"/scripts/topology-check.sh "$T"/scripts/assemble-directives.sh "$T"/scripts/wire-platform.sh "$T"/scripts/rebuild-trellis-db.sh "$T"/scripts/ingest-memories.sh; do
     [ -f "$s" ] || continue
     if ! grep -q "$canonical" "$s"; then
         echo "Missing resolve_trellis_home in: $(basename "$s")" >&2

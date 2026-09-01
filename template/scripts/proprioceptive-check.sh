@@ -300,9 +300,9 @@ fi
 
 # Priority 5: storage integrity
 if [ "$storage_status" = "INTEGRITY FAILURE" ]; then
-    adjustments+=("[set_point:integrity_check, prov:environment] Storage integrity degraded — run rebuild-db.sh")
+    adjustments+=("[set_point:integrity_check, prov:environment] Storage integrity degraded — run rebuild-trellis-db.sh")
 elif [ "$storage_status" = "NO DB" ] && [ "$db_enabled" = "true" ]; then
-    adjustments+=("[set_point:integrity_check, prov:environment] Database not built — run rebuild-db.sh")
+    adjustments+=("[set_point:integrity_check, prov:environment] Database not built — run rebuild-trellis-db.sh")
 fi
 
 # Priority 6: memory file drift (context-layer staleness detection)

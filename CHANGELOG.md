@@ -48,7 +48,7 @@ health:
 - Memory deletion wall (`scripts/git-hooks/pre-commit` + `scripts/install-hooks.sh`): commits that delete a top-level `memory/*.md`, or move one out of the read path (e.g. into `memory/archive/`), are blocked. In-place renames allowed. Deliberate override via `ALLOW_MEMORY_DELETE=1` is permitted and logged to `health/deletion-attempts.log`.
 - Recovery UX: `RECOVERY.md` (one-page restore guide, lives in the install so it travels in the private memory repo), `BOOTSTRAP.md` (browser-only bootstrap prompt), `scripts/restore.sh` (one-command restore: recover → update → arm wall → wire → health-check).
 - `health-check.sh`: re-arms the wall idempotently on every run and reports "wall: armed"; identity check (config `ai_name` vs active profile); Dignity Net canon pin check (`plugins.dn_version` + `plugins.dn_checksum` in config); one imperative DO-NEXT line per non-OK check.
-- `rebuild-db.sh` snapshot freshness gate: never rebuild from a `data-*.sql` snapshot older than the memory files — regenerate from markdown first (a frozen snapshot silently strands every memory written after it).
+- `rebuild-trellis-db.sh` snapshot freshness gate: never rebuild from a `data-*.sql` snapshot older than the memory files — regenerate from markdown first (a frozen snapshot silently strands every memory written after it).
 - `tests/test-wall.sh` (wall behavior) and `tests/test-portability.sh` (macOS/BSD lint: no `grep -P`, `md5sum`, `stat -c`, `date -d`, bare `sed -i`, `realpath` in `template/scripts/`).
 
 ### Changed
@@ -123,7 +123,7 @@ health:
 - `topology-check.sh` — governance axis counting vs threshold
 - `assemble-directives.sh` — plugin directives assembly
 - `wire-platform.sh` — activation block generator
-- `rebuild-db.sh` — atomic SQLite rebuild with verification
+- `rebuild-trellis-db.sh` — atomic SQLite rebuild with verification
 - `ingest-memories.sh` — .md frontmatter to SQL parser
 - Storage tiers (T0-T3) with security documentation
 - LLM-executable install and uninstall flows

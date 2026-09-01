@@ -25,7 +25,7 @@ What the memory system provides to the rest of Trellis.
 |-----------|-------------|-------|
 | Sync (commit + push) | `scripts/memory-sync.sh` | Flags: `--quick`, `--verify-only` |
 | Health metrics | `scripts/health-check.sh` | Returns: pressure, fragmentation, volatility, drift |
-| DB rebuild | `scripts/rebuild-db.sh` | Atomic swap, optional (DB is read cache) |
+| DB rebuild | `scripts/rebuild-trellis-db.sh` | Atomic swap, optional (DB is read cache) |
 | Ingest .md → SQL | `scripts/ingest-memories.sh` | `--check-untagged` for hygiene scan |
 | Full-text search | `SELECT ... FROM memory_fts WHERE memory_fts MATCH ?` | FTS5, porter tokenizer |
 | Ranked search | `SELECT ... FROM v_fts_confidence WHERE memory_fts MATCH ?` | Text × confidence × recency |

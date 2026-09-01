@@ -282,8 +282,8 @@ echo "  drift:         $drift  [OK]"
 # SQLite acceleration layer (auto-rebuild if stale)
 db_enabled=$(get_config "database.enabled" "true")
 db_path="$TRELLIS/$(get_config "database.path" "trellis.db")"
-if [ "$db_enabled" = "true" ] && [ -x "$TRELLIS/scripts/rebuild-db.sh" ]; then
-    bash "$TRELLIS/scripts/rebuild-db.sh" --if-stale 2>/dev/null || true
+if [ "$db_enabled" = "true" ] && [ -x "$TRELLIS/scripts/rebuild-trellis-db.sh" ]; then
+    bash "$TRELLIS/scripts/rebuild-trellis-db.sh" --if-stale 2>/dev/null || true
 fi
 if [ "$db_enabled" = "true" ]; then
     if [ -f "$db_path" ] && command -v sqlite3 &>/dev/null; then
@@ -294,12 +294,12 @@ if [ "$db_enabled" = "true" ]; then
             checks_ok=$((checks_ok + 1))
         else
             echo "  sqlite:        ON ($table_count tables, integrity: $integrity)  [WARN]"
-            do_next "Run scripts/rebuild-db.sh to rebuild the DB from flat files (flat files are the source of truth)."
+            do_next "Run scripts/rebuild-trellis-db.sh to rebuild the DB from flat files (flat files are the source of truth)."
             warnings=$((warnings + 1))
         fi
     elif [ ! -f "$db_path" ]; then
-        echo "  sqlite:        ON (not built yet — run rebuild-db.sh)  [WARN]"
-        do_next "Run scripts/rebuild-db.sh to build the SQLite acceleration layer."
+        echo "  sqlite:        ON (not built yet — run rebuild-trellis-db.sh)  [WARN]"
+        do_next "Run scripts/rebuild-trellis-db.sh to build the SQLite acceleration layer."
         warnings=$((warnings + 1))
     elif ! command -v sqlite3 &>/dev/null; then
         echo "  sqlite:        ON (sqlite3 not installed)  [WARN]"

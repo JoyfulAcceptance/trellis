@@ -142,7 +142,7 @@ and computed views. Flat files remain the source of truth.
 |   +-- topology-check.sh      Governance axis count
 |   +-- assemble-directives.sh Plugin directives assembly
 |   +-- wire-platform.sh       Platform activation block
-|   +-- rebuild-db.sh          SQLite rebuild (optional)
+|   +-- rebuild-trellis-db.sh          SQLite rebuild (optional)
 |   +-- ingest-memories.sh     Memory file ingestion (optional)
 |   +-- db/                    Schema and views (optional)
 ```

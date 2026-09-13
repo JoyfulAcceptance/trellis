@@ -10,7 +10,7 @@
 #   G9  write a snapshot, force a full rebuild   the row survives
 #   G11 change db/schema.sql alone               --if-stale rebuilds
 #
-# Guards for these two live in tests/test-rebuild-trellis-db.sh (H8, R1), which also
+# Guards for these two live in tests/test-rebuild-db.sh (H8, R1), which also
 # proves each one red. This file is the drill: the shortest path from "break
 # it" to "the gauge reported it".
 set -uo pipefail
@@ -22,6 +22,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 if ! command -v sqlite3 >/dev/null 2>&1; then
     skip_test "sqlite3 absent: rebuild-trellis-db.sh cannot be exercised"
+    exit 0
+fi
+if ! fts5_available; then
+    skip_test "sqlite3 lacks FTS5: memory-layer tests not exercised"
     exit 0
 fi
 

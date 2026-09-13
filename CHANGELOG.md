@@ -2,6 +2,119 @@
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-09-13
+
+The memory-layer release. On every install the shipped database rebuild had
+been reporting `Rebuild complete … integrity OK` over an empty database, and
+even once rows loaded the four-table schema had nowhere to put a `type: skill`
+memory or a feedback typed inside an `insight-*.md`. This release makes every
+typed memory file one row, gives every row an openable path, adds the search
+script that returns those paths, and makes the rebuild refuse — by name —
+to report success while holding less than the files.
+
+### Upgrading
+
+No config keys are added and no pinned value changes. After
+`trellis-update.sh` finishes, run `scripts/post-update.sh` and follow the
+NEXT STEPS it prints. The first update from 0.5.x is performed by the
+installed 0.5.x updater, which prints its old summary and deletes custom
+plugins/scripts and `scripts/db/data-*.sql` — back those up first. Read
+[docs/UPGRADING-0.6.0.md](docs/UPGRADING-0.6.0.md) before updating an
+established install.
+
+### Added
+
+- `memories` view (`name, type, description, path`) — every memory with an
+  openable address — and `v_memory_addr` (7 columns; the OPSEC boundary).
+- `scripts/recall.sh <terms>` — type, path and a one-line description per hit;
+  quotes every token (a hyphenated term is no longer an FTS5 syntax error);
+  loud on a failed query; exit 4 on no match; logs counts only to
+  `health/recall.log`.
+- `scripts/record-session.sh [--crash]` — compiles `.session-events` into one
+  `memory/session-log.md` row; no-file is a stated no-op; the same session is
+  never appended twice. Called by the SessionEnd hook, the Session End
+  directive, and the crash-recovery path.
+- `scripts/post-update.sh [--from OLD]` — rebuilds on the current schema,
+  counts typed files against rows, prints the governance-log status and the
+  NEXT STEPS for the assistant reading it cold.
+- Population report at rebuild: every all-empty column named; a kind census;
+  files without `type:` and frontmatter keys that reach no column listed.
+- `.update-backup/<old-version>-<timestamp>/` — the previous `scripts/` and
+  `plugins/`, kept by the updater (gitignored).
+- `lib/memory-files.sh` — the one definition of "a typed memory file".
+- CI prints bash and sqlite3 versions and whether FTS5 is present.
+
+### Changed
+
+- **Schema:** `memory_item` supertype with `memory_kind` (feedback, skill,
+  project, reference, user, other); `feedback`, `projects`, `"references"`,
+  `user_profile` are now views over it — every inherited view and consumer
+  runs unedited. `"references"` gains `content`. `memory_fts` carries `path`
+  (last, unindexed). `confidence_config` gains `skill` and `other`.
+- **One FTS insert** over the supertype, with `path`, excluding compartmented rows.
+- **Ingest:** the bare call (or `--all`) emits every typed memory file into one
+  derived seed, `scripts/db/data-memories.sql` (gitignored). An unknown
+  `type:` lands as kind `other` and is named, never dropped. Frontmatter is
+  the block after a fence on line 1 — a `---` further down is a horizontal
+  rule, which is how `protocol.md` had been ingested as a memory.
+- **Rebuild:** regenerates the seed on every run; removes legacy per-type
+  seeds by name; populates `memory_confidence` (the staleness pre-flight and
+  the decay views become live for the first time — a behaviour change);
+  `--if-stale` says when it does nothing; the staleness key covers the
+  pipeline (schema, views, ingest, rebuild), from PR #24; final line states
+  `R memories / F typed files`.
+- **health-check.sh / trellis-profile.sh** show the rebuild's stderr and keep
+  its exit; the sqlite line reads `R memories / F typed files` and warns when
+  R < F or the schema predates the `memories` view.
+- **Directives:** `directives-base.md` carries the three blocks it had drifted
+  behind `directives.md` on; the assembled file opens with a GENERATED marker
+  and `assemble-directives.sh` emits exactly one. Session Start step 8 runs
+  the rebuild and reports a refusal; new 8b: recall before you guess; Session
+  End step 6 runs `record-session.sh`; the Updates section routes to
+  `post-update.sh`. `protocol.md` and the platform activation blocks name
+  `record-session.sh`.
+- **Updater:** re-executes its freshly installed self for the post-swap steps
+  (#13), keeps a backup (#27), preserves `scripts/db/data-*.sql` (#23), names
+  the user's own additions, copies `directives-base.md` as the base, and runs
+  `post-update.sh`.
+- **acs-check.sh:** "insufficient data" now says why — the last row and the
+  number of session ends since it with no row.
+- `ln(2)` is a literal in `schema.sql` (math functions are optional in sqlite3 builds).
+
+### Fixed
+
+- #17 — the rebuild no longer destroys health history and no longer ignores
+  pipeline changes (PR #24, folded in).
+- #25 — a sqlite3 without FTS5 is one named refusal (exit 2) with the fix
+  stated, not six unrelated failures.
+- #23 — `scripts/db/data-*.sql` survive an update (from the 0.6.0 updater onward).
+- #27 — the previous `scripts/` and `plugins/` are kept in `.update-backup/`
+  and custom additions are named (from the 0.6.0 updater onward).
+- #13 — the updater re-execs into the new script so the new release's
+  finishing steps run (from the 0.6.0 updater onward).
+- #20 (partial) — base and assembled directives reconciled, generated-file
+  header, heading-set test. Refuse-on-divergence detection is not built.
+- #12 — documented in UPGRADING-0.6.0 (no keys added by this release); stays open.
+
+### Removed
+
+- FTS arms for `corrections`, `people`, `sessions`, `decisions`,
+  `breakthroughs` — nothing in the shipped scripts writes those tables; a
+  future writer goes through `memory_item`.
+- The four per-type ingest globs and their seeds (`data-feedback.sql`,
+  `data-projects.sql`, `data-references.sql`, `data-user.sql`); the rebuild
+  removes any it finds, by name.
+
+### Feedback
+
+If you have a minute, we would like to hear how this release behaved on your
+install. Run `scripts/trellis-diagnostic.sh` — it reports structure only
+(counts, versions, health lines), never memory content — and send the output,
+or open an issue at https://github.com/energyscholar/trellis/issues. After
+about ten more sessions, `scripts/acs-check.sh` should start producing a
+number instead of "insufficient data"; if it does, or if it still does not,
+that is worth a line too. Entirely optional.
+
 ## [0.5.1] — 2026-08-07
 
 Interim release. It ships work that had been merged since 0.5.0 but was

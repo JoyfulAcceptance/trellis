@@ -171,6 +171,8 @@ During install on Codex:
 - Set `remote_url` to the user's private Trellis repo
 - Wire `AGENTS.md` instead of `CLAUDE.md`
 - Skip hook wiring (Codex has no SessionEnd hooks — the AI follows shutdown directives)
+- Session end: run `scripts/record-session.sh` then `scripts/memory-sync.sh` — no
+  hook exists on Codex, the directive is the mechanism
 
 The SQLite acceleration layer works well on Codex: it's a deterministic cache rebuilt
 from flat files each session via `scripts/rebuild-trellis-db.sh`.
@@ -179,6 +181,8 @@ from flat files each session via `scripts/rebuild-trellis-db.sh`.
 
 To check for updates: `scripts/trellis-update.sh --check`
 To apply: `scripts/trellis-update.sh`
+Afterwards: `scripts/post-update.sh` — it rebuilds the memory database on the
+current schema, checks every memory file reached it, and prints the next steps.
 
 **Read [docs/update.md](update.md) before updating an established install.** Two
 things there are easy to lose work to, and both used to be described incorrectly

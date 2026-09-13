@@ -70,6 +70,7 @@ Or run it yourself:
 ```bash
 bash ~/.trellis/scripts/trellis-update.sh --check    # report only
 bash ~/.trellis/scripts/trellis-update.sh            # apply
+bash ~/.trellis/scripts/post-update.sh               # then: rebuild, check, next steps
 ```
 
 ⚠ **Read [docs/update.md](docs/update.md) first if your install is established.**
@@ -89,7 +90,7 @@ Trellis has no daemon, no process, no server. The AI agent IS the CPU.
 
 Every session:
 - **Start:** AI reads `memory/MEMORY.md`, then `corrections.md`
-- **End:** AI updates state, runs `scripts/memory-sync.sh`
+- **End:** AI updates state, runs `scripts/record-session.sh`, then `scripts/memory-sync.sh`
 
 That's the irreducible loop. Everything else builds on it.
 
@@ -118,7 +119,10 @@ The system heals itself.
 
 For mature installs, enable `database.enabled: true` in config.yaml.
 Adds ranked full-text search (FTS5), confidence decay, evidence tracking,
-and computed views. Flat files remain the source of truth.
+and computed views. Flat files remain the source of truth. Search with
+`scripts/recall.sh <terms>` — it returns type, path and a one-line
+description per hit, and the rebuild refuses to report success while the
+database holds fewer rows than there are memory files.
 
 ---
 
@@ -142,7 +146,10 @@ and computed views. Flat files remain the source of truth.
 |   +-- topology-check.sh      Governance axis count
 |   +-- assemble-directives.sh Plugin directives assembly
 |   +-- wire-platform.sh       Platform activation block
-|   +-- rebuild-trellis-db.sh          SQLite rebuild (optional)
+|   +-- recall.sh              Memory search (type, path, description)
+|   +-- record-session.sh      Session-log row from .session-events
+|   +-- post-update.sh         Post-update rebuild, check, next steps
+|   +-- rebuild-trellis-db.sh  SQLite rebuild (optional)
 |   +-- ingest-memories.sh     Memory file ingestion (optional)
 |   +-- db/                    Schema and views (optional)
 ```

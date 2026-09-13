@@ -76,8 +76,14 @@ rm -rf "$TRELLIS/scripts.old" "$TRELLIS/plugins.old"   # the backup goes too
 ```
 
 Anything in those two directories that the distribution does not ship is **gone,
-with no on-disk backup**. This is [issue #27](https://github.com/energyscholar/trellis/issues/27)
-and it is not yet fixed. If you have written your own plugin, this will delete it.
+with no on-disk backup**. This is [issue #27](https://github.com/energyscholar/trellis/issues/27).
+If you have written your own plugin, this will delete it.
+
+**From 0.6.0** the updater keeps the previous `scripts/` and `plugins/` in
+`.update-backup/<old-version>-<timestamp>/`, preserves `scripts/db/data-*.sql`,
+and names your own additions in its summary. But the updater that runs is the
+one **already installed**, so the first update *onto* 0.6.0 still behaves as
+described above — see [UPGRADING-0.6.0.md](UPGRADING-0.6.0.md) §1.
 
 **Always, before updating:**
 
@@ -133,7 +139,7 @@ diff <(git clone -q --depth 1 https://github.com/energyscholar/trellis /tmp/t-cf
 ```
 
 Take the release's new keys and any changed pins; keep your own values for
-everything else.
+everything else. (0.6.0 adds no keys.)
 
 ---
 
@@ -152,6 +158,10 @@ bash ~/.trellis/scripts/trellis-update.sh --check
 bash ~/.trellis/scripts/trellis-update.sh
 
 # 4. restore your own plugins/scripts by name
+
+# 4b. this release's next steps (rebuilds the database on the new schema,
+#     counts memory files against rows, prints what to do now)
+bash ~/.trellis/scripts/post-update.sh
 
 # 5. reconcile config keys (§3)
 
@@ -180,13 +190,13 @@ route back. Make the install a git repo before updating:
 
 ## 5. Requirements worth checking first
 
-The SQLite acceleration layer needs a `sqlite3` built with **math functions** and
-**FTS5**. Without them `schema.sql` fails to load, there is no database, and the
-failure surfaces as unrelated-looking errors elsewhere
-([issue #25](https://github.com/energyscholar/trellis/issues/25)):
+The SQLite acceleration layer needs a `sqlite3` built with **FTS5**. From 0.6.0
+the rebuild **refuses by name** without it (exit 2, naming the sqlite3 version
+and the fix) rather than failing the schema load with unrelated-looking errors
+([issue #25](https://github.com/energyscholar/trellis/issues/25)); math functions
+are no longer required (`ln(2)` is a literal in the schema):
 
 ```bash
-sqlite3 :memory: "select ln(2);"                        # expect 0.693...
 sqlite3 :memory: "create virtual table t using fts5(x);" # expect no error
 ```
 
@@ -194,6 +204,10 @@ sqlite3 :memory: "create virtual table t using fts5(x);" # expect no error
 
 ## 6. Per-release upgrade notes
 
+- [v0.6.0](UPGRADING-0.6.0.md) — the memory-layer release: every typed memory
+  file becomes a database row with an openable path, `scripts/recall.sh`,
+  `scripts/record-session.sh`, and a rebuild that refuses to report success
+  over an empty database. Run `scripts/post-update.sh` afterwards.
 - [v0.5.1](UPGRADING-0.5.1.md) — first release an existing install could receive
   after 0.5.0; moves the Dignity Net canon to v1.4 and makes
   `database.enabled: false` actually work.

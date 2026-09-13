@@ -38,3 +38,8 @@ fi
 git config core.hooksPath scripts/git-hooks
 chmod +x scripts/git-hooks/* 2>/dev/null || true
 echo "install-hooks: core.hooksPath = $(git config core.hooksPath)"
+# This is the last step an older updater runs from the NEW tree, so it is
+# the one line that reaches an install whose updater predates post-update.sh.
+if [ -x "$TRELLIS/scripts/post-update.sh" ]; then
+    echo "install-hooks: if you have just updated, run scripts/post-update.sh for this release's next steps."
+fi

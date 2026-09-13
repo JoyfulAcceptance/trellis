@@ -11,3 +11,6 @@ scripts/db/data-memories.sql
 
 # Marker files (machine-local state)
 .github-setup-complete
+
+# Previous scripts/ and plugins/, kept by trellis-update.sh (machine-local)
+.update-backup/

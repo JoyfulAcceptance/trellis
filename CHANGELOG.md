@@ -2,6 +2,47 @@
 
 ## [Unreleased]
 
+## [0.6.1] — 2026-09-13
+
+A count with no names is not actionable. `health-check.sh` had reported
+`fragmentation: 0.18 [HIGH]` and told the assistant to "add the unindexed
+memory files to the file map" without saying which files — the same shape as
+the upstream incident where six governance memories sat on disk unlisted and
+were never loaded. This release names them.
+
+### Upgrading
+
+No config keys are added. Everything in
+[docs/UPGRADING-0.6.0.md](docs/UPGRADING-0.6.0.md) applies to an install
+coming from 0.5.x; `scripts/post-update.sh` now runs the audit for you. See
+[docs/UPGRADING-0.6.1.md](docs/UPGRADING-0.6.1.md).
+
+### Added
+
+- `scripts/memory-audit.sh` — names every stranded memory file, where, and the
+  one-line fix: not in `MEMORY.md` (A), no `type:` (B), frontmatter not on
+  line 1 (C), File Map rows naming a file that is not on disk (F), typed files
+  with no database row (G); dangling `[[wiki-links]]` (E, warn — links inside
+  code are ignored) and CRLF endings (D, info). Read-only over `memory/`; ends
+  with NEXT STEPS for the assistant; exit 1 when something is stranded;
+  `--quiet` prints the summary line only; a new install prints
+  `new install — nothing to audit`.
+- `lib/memory-files.sh` — the one definition of "unindexed" and of the four
+  protocol files (`MEMORY.md`, `corrections.md`, `protocol.md`,
+  `session-log.md`), shared by the fragmentation metric and the audit.
+
+### Changed
+
+- **health-check.sh:** the fragmentation DO-NEXT names the fix — run
+  `scripts/memory-audit.sh` — instead of asking for files it did not name;
+  `session-log.md` is a protocol file and no longer counts as unindexed.
+- **post-update.sh:** four steps — the memory audit is 3/4; NEXT STEPS gain
+  "repair what the audit named, then rebuild".
+- **Directives:** Session Start step 6 — if fragmentation is HIGH, run the
+  audit and repair what it names; Self-Maintenance names the audit for broken
+  file references. `trellis-diagnostic.sh` carries the audit's summary line
+  (counts only).
+
 ## [0.6.0] — 2026-09-13
 
 The memory-layer release. On every install the shipped database rebuild had

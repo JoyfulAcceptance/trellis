@@ -204,6 +204,9 @@ sqlite3 :memory: "create virtual table t using fts5(x);" # expect no error
 
 ## 6. Per-release upgrade notes
 
+- [v0.6.1](UPGRADING-0.6.1.md) — `scripts/memory-audit.sh` names every stranded
+  memory file and its fix; `scripts/post-update.sh` runs it. Everything in the
+  0.6.0 notes still applies to an install coming from 0.5.x.
 - [v0.6.0](UPGRADING-0.6.0.md) — the memory-layer release: every typed memory
   file becomes a database row with an openable path, `scripts/recall.sh`,
   `scripts/record-session.sh`, and a rebuild that refuses to report success

@@ -52,8 +52,12 @@ while IFS= read -r line; do
     fi
 done < "$config"
 
-# Start with base directives
-output=$(cat "$read_from")
+# Start with base directives. Any GENERATED marker already in the input is
+# dropped (an older updater copies the assembled file in as the base), and
+# exactly one is emitted at the top of the output.
+GENERATED_MARKER="<!-- GENERATED from directives-base.md by scripts/assemble-directives.sh — edit the base, not this file -->"
+output=$(grep -v '^<!-- GENERATED from directives-base.md' "$read_from" || true)
+output="$GENERATED_MARKER"$'\n'"$output"
 
 # For each active plugin, replace its section placeholder with actual content
 for plugin in "${plugins[@]}"; do

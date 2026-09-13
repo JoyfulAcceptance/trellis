@@ -85,6 +85,7 @@ verbatim into each script (no external sourcing — each script is self-containe
 |   +-- topology-check.sh      Governance axis count
 |   +-- assemble-directives.sh Plugin directives assembly
 |   +-- wire-platform.sh       Activation block generator
+|   +-- recall.sh              memory search: type, path, description per hit
 |   +-- rebuild-trellis-db.sh  SQLite DB rebuild (optional; runs the ingest, refuses a short database)
 |   +-- ingest-memories.sh     .md -> SQL parser: every typed memory file -> one memory_item row
 |   +-- db/

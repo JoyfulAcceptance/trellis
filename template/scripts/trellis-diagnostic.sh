@@ -69,6 +69,11 @@ if [ -f "$SCRIPT_DIR/lib/memory-files.sh" ]; then
     fi
     echo "Memory database: $db_rows memories / $db_typed typed files ($db_untyped without type:)"
 fi
+# The recall route is measurable: one line per search, counts only.
+recall_searches=0
+[ -f "$TRELLIS/health/recall.log" ] && \
+    recall_searches=$(grep -c "	search	" "$TRELLIS/health/recall.log" 2>/dev/null || true)
+echo "Recall searches logged: $recall_searches"
 
 mem_lines=0
 [ -f "$TRELLIS/memory/MEMORY.md" ] && mem_lines=$(wc -l < "$TRELLIS/memory/MEMORY.md")

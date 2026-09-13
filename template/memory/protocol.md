@@ -49,7 +49,7 @@ Pinned items (corrections) exempt.
 3. **Classify:** PARADIGM (new insight, direction change, milestone, substantive new articulation) or ROUTINE (incremental). Default PARADIGM if unsure.
 4. **Correction violation sweep:** Review session for violations. Update "Last violated" dates.
 5. **Update Health Metrics + integrity checks** (Sections 7, 9)
-6. **Log session events:** Append one row to `memory/session-log.md`. Three axis columns: Memory events (correction, save, compress, staleness-caught), Structure events (plan, follow, transition, drift-flag, drift-resolved), Ethics events (l0-l5, storm, divergence). Record structural facts, not quality judgments. Use `—` for no events on an axis.
+6. **Log session events:** Run `scripts/record-session.sh` — it appends one row to `memory/session-log.md` from `.session-events`. Three axis columns: Memory events (correction, save, compress, staleness-caught), Structure events (plan, follow, transition, drift-flag, drift-resolved), Ethics events (l0-l5, storm, divergence). Record structural facts, not quality judgments. Use `—` for no events on an axis.
 7. **Extract open threads:** Unresolved topics in >=3 of last 5 sessions -> add to `## Open Threads` in MEMORY.md (max 5). Stale after 3 sessions without mention.
 8. **Commit:** Run `scripts/memory-sync.sh`
 9. **Remove dirty flag:** Delete `.session-active`
@@ -125,7 +125,7 @@ Compute at session end. Store in MEMORY.md Health Metrics.
 
 ## 10. Crash Recovery (Tiered)
 
-**Tier 0 -- Session recovery:** `.session-active` exists but no structural damage. Read `.session-events` for partial data. Write a session-log row with available events, annotated `(crash)`. Remove `.session-active` and `.session-events`. Resume normally.
+**Tier 0 -- Session recovery:** `.session-active` exists but no structural damage. Run `scripts/record-session.sh --crash` — it writes a session-log row from `.session-events` with every event annotated `(crash)` and removes the events file. Remove `.session-active`. Resume normally.
 
 **Tier 1 -- Auto-repair:** Count mismatch -> recalculate. Broken ref -> remove + flag. Stale metric -> recompute. If fixed -> resume.
 

@@ -45,7 +45,7 @@ Full directives: read the file at ${install_path}/directives.md at session start
 
 **Minimum session loop:**
 - **Start:** Read \`${install_path}/memory/MEMORY.md\`, then \`${install_path}/memory/corrections.md\`
-- **End:** Update \`${install_path}/memory/MEMORY.md\`, run \`${install_path}/scripts/memory-sync.sh\`
+- **End:** Update \`${install_path}/memory/MEMORY.md\`, run \`${install_path}/scripts/record-session.sh\`, then \`${install_path}/scripts/memory-sync.sh\`
 <!-- TRELLIS END -->
 BLOCK
             ;;
@@ -58,7 +58,7 @@ Full directives: read the file at ${install_path}/directives.md at session start
 
 **Minimum session loop:**
 - **Start:** Read \`${install_path}/memory/MEMORY.md\`, then \`${install_path}/memory/corrections.md\`
-- **End:** Update \`${install_path}/memory/MEMORY.md\`, run \`${install_path}/scripts/memory-sync.sh\`
+- **End:** Update \`${install_path}/memory/MEMORY.md\`, run \`${install_path}/scripts/record-session.sh\`, then \`${install_path}/scripts/memory-sync.sh\`
 <!-- TRELLIS END -->
 BLOCK
             ;;
@@ -71,7 +71,7 @@ alwaysApply: true
 # Trellis Governance
 Full directives: read the file at ${install_path}/directives.md at session start.
 Start: Read ${install_path}/memory/MEMORY.md, then corrections.md
-End: Update MEMORY.md, run ${install_path}/scripts/memory-sync.sh
+End: Update MEMORY.md, run ${install_path}/scripts/record-session.sh, then ${install_path}/scripts/memory-sync.sh
 BLOCK
             ;;
         *)

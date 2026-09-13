@@ -1,3 +1,4 @@
+<!-- GENERATED from directives-base.md by scripts/assemble-directives.sh — edit the base, not this file -->
 # Trellis Directives
 
 ## Memory System
@@ -13,7 +14,7 @@ You have a persistent memory directory at `memory/`. Its contents persist across
 
 ### Session Start
 
-0. **Session lifecycle (FIRST ACTION — before reading any files):** Check if `.session-active` exists. If yes: previous session crashed — read `.session-events` if present, write a crash-recovered row to `memory/session-log.md` (append existing events with `(crash)` annotation, use `—` for axes with no events), remove both files. Then: create `.session-active`. Create `.session-events` with header: `S{N} {date} domain:unknown` (N = last session-log row number + 1, or 1 if empty).
+0. **Session lifecycle (FIRST ACTION — before reading any files):** Check if `.session-active` exists. If yes: previous session crashed — run `scripts/record-session.sh --crash` (it writes a crash-recovered row to `memory/session-log.md` from `.session-events` if present, annotating every event `(crash)`, and removes the events file), then remove `.session-active`. Then: create `.session-active`. Create `.session-events` with header: `S{N} {date} domain:unknown` (N = last session-log row number + 1, or 1 if empty).
 1. Read `memory/MEMORY.md` (auto-loaded)
 2. **Identity check (first-session gate):** If identity fields are empty (session 0), this is a new user. STOP here — ask for their name and what they're working on BEFORE running any technical checks. Do not infer identity from the system username, file paths, environment variables, or any existing config — this profile may have been installed by someone else. Use an open-ended question, not pre-filled options. Only after identity is set: proceed to step 3.
 3. Read `memory/corrections.md` -- check every correction
@@ -22,7 +23,8 @@ You have a persistent memory directory at `memory/`. Its contents persist across
 5. If MEMORY.md is near the line cap: read `memory/protocol.md` Section 3, compress
 6. Check health metrics; if anomalies, investigate
 7. After 5+ sessions: run `scripts/health-check.sh` every ~5 sessions
-8. **SQLite bootstrap (session 2+):** If `database.enabled` is true in config and no `.db` file exists yet, run `scripts/rebuild-trellis-db.sh` then `scripts/ingest-memories.sh` for each memory file. This is a one-time setup — subsequent sessions use `rebuild-trellis-db.sh --if-stale` (auto-detects memory changes via checksum).
+8. **Memory database:** If `database.enabled` is true, run `scripts/rebuild-trellis-db.sh --if-stale`. It ingests every memory file itself and prints what it loaded. If it REFUSES (non-zero exit), tell the user what it said — do not proceed as if the database were fine.
+8b. **Recall before you guess:** When the user asks about something that may already be in memory — a person, a project, a rule, a decision, a past session — run `scripts/recall.sh <two or three distinctive words>` first. It prints type, path and a one-line description for each hit; open the path to read the memory. Do not search `memory/` with grep — the search already returns addresses you can open.
 9. **Staleness check:** Before citing any memory not updated in >90 days, verify it's still current.
 10. **Post-compression recovery:** If this session began from a compression boundary (context was summarized), compare checksums in the MEMORY.md File Map against actual files. Re-read any file whose checksum mismatches — your in-context understanding may be stale. Priority: corrections.md first, then any feedback files referenced in the compressed summary.
 
@@ -46,7 +48,7 @@ On first session with a new profile, mention once that saying "shutdown" or "don
 3. Correction violation sweep: review session for violations, update dates
 4. Run integrity checks (verify file paths, correction count, orphans)
 5. Update health metrics
-6. **Log session events:** Compile `.session-events` into one row in `memory/session-log.md`. Aggregate events per axis, comma-separated. Annotate sources: `(e)` environment, `(s)` system, unannotated = human. Remove `.session-events` after compilation.
+6. **Log session events:** Run `scripts/record-session.sh`. It compiles `.session-events` into one row of `memory/session-log.md` and removes the events file. If it reports that `.session-events` does not exist, say so in your closing summary: it means this session recorded no events. Annotate sources in the events file as they happen: `(e)` environment, `(s)` system, unannotated = human.
 7. Run `scripts/memory-sync.sh` to commit memory files
 8. Remove `.session-active` flag (AFTER step 7 — this is the clean-exit signal)
 9. If new memory files created: verify no PII or credentials
@@ -92,9 +94,10 @@ If enabled in config (`database.enabled: true`), a SQLite DB provides fast queri
 - `SELECT * FROM v_compression_candidates` -- what to compress
 - `SELECT * FROM v_memory_stats` -- row counts
 - `SELECT * FROM v_people_safe` -- people without OPSEC-restricted fields
-- FTS5: `SELECT ... FROM memory_fts WHERE memory_fts MATCH ? ORDER BY rank`
+- Search: `scripts/recall.sh <terms>` — returns type, path, description
+- `SELECT * FROM memories` — every memory with its path
 
-Rebuild: `scripts/rebuild-trellis-db.sh`. Ingest: `scripts/ingest-memories.sh`.
+Rebuild: `scripts/rebuild-trellis-db.sh` (it runs the ingest itself).
 
 ## Ethical Governance
 (populated when dignity-net plugin is active)
@@ -135,7 +138,7 @@ Trellis supports named snapshots of the entire memory state for comparison, expe
 
 ## Updates & Diagnostics
 
-**Update:** When the user asks to update Trellis, run `scripts/trellis-update.sh`. To check without applying: `scripts/trellis-update.sh --check`. Updates overwrite system files (scripts, plugins, directives template) but never touch user data (memory, config, profiles). Every ~10 sessions, run `--check` and let the user know if an update is available.
+**Update:** When the user asks to update Trellis, run `scripts/trellis-update.sh`. To check without applying: `scripts/trellis-update.sh --check`. Updates overwrite system files (scripts, plugins, directives template) but never touch user data (memory, config, profiles). Every ~10 sessions, run `--check` and let the user know if an update is available. After `trellis-update.sh` finishes, run `scripts/post-update.sh` and follow the NEXT STEPS it prints — it rebuilds the memory database on the new schema, checks that every memory file reached the database, and prints the release notes. Then re-read this file: directives change between releases.
 
 **Diagnostic:** When the user asks for a diagnostic report (or "run trellis diagnostic"), run `scripts/trellis-diagnostic.sh`. The output contains structural metadata only — no memory content, corrections text, or personal data. The user controls what they share.
 

@@ -2,6 +2,39 @@
 -- Depends on: schema.sql (tables + v_memories_decayed via confidence overlay)
 
 -- ============================================================================
+-- Legacy memory names — VIEWS over memory_item
+-- ============================================================================
+-- feedback, projects, "references" and user_profile were tables until 0.6.0.
+-- They are now derived from memory_item so that every inherited view and
+-- consumer keeps working unedited. Column ORDER of feedback and projects
+-- matches the old tables exactly (they feed f.* / p.* below).
+
+CREATE VIEW feedback AS
+SELECT mi.id, mi.slug, fd.rule, mi.why, mi.how_to_apply, mi.content, mi.established,
+       NULL AS last_triggered, NULL AS source, mi.domain, mi.opsec_level, mi.compaction_tag,
+       mi.source_file, mi.created_at, mi.updated_at
+FROM memory_item mi JOIN memory_kind mk ON mk.id = mi.kind_id AND mk.name = 'feedback'
+LEFT JOIN feedback_detail fd ON fd.item_id = mi.id;
+
+CREATE VIEW projects AS
+SELECT mi.id, mi.slug, mi.name, COALESCE(pd.status,'active') AS status, mi.description, mi.why,
+       mi.how_to_apply, mi.content, mi.domain, mi.opsec_level, mi.compaction_tag, mi.source_file,
+       mi.created_at, mi.updated_at
+FROM memory_item mi JOIN memory_kind mk ON mk.id = mi.kind_id AND mk.name = 'project'
+LEFT JOIN project_detail pd ON pd.item_id = mi.id;
+
+CREATE VIEW "references" AS
+SELECT mi.id, mi.slug, mi.name, NULL AS path_or_url, mi.description, mi.content,
+       mi.opsec_level, mi.source_file, mi.created_at, mi.updated_at
+FROM memory_item mi JOIN memory_kind mk ON mk.id = mi.kind_id AND mk.name = 'reference';
+
+CREATE VIEW user_profile AS
+SELECT mi.id, mi.slug, COALESCE(ud.attribute, mi.name) AS attribute, mi.content AS value,
+       COALESCE(ud.context, mi.description) AS context, mi.source_file, mi.created_at, mi.updated_at
+FROM memory_item mi JOIN memory_kind mk ON mk.id = mi.kind_id AND mk.name = 'user'
+LEFT JOIN user_detail ud ON ud.item_id = mi.id;
+
+-- ============================================================================
 -- Foundation: confidence decay computation
 -- ============================================================================
 
@@ -150,7 +183,34 @@ SELECT 'projects', id, slug, opsec_level
 FROM projects WHERE opsec_level IS NOT NULL
 UNION ALL
 SELECT 'references', id, name, opsec_level
-FROM "references" WHERE opsec_level IS NOT NULL;
+FROM "references" WHERE opsec_level IS NOT NULL
+UNION ALL
+SELECT 'memory_item', id, slug, opsec_level
+FROM memory_item WHERE opsec_level IS NOT NULL;
+
+-- ============================================================================
+-- The service surface: every memory, with an openable address
+-- ============================================================================
+-- v_memory_addr: 7 columns, in this order —
+--   source_table · source_id · in_registry · name · type · description · path
+-- The INNER JOIN through memory_kind plus the opsec filter is what makes it
+-- the OPSEC boundary: a compartmented row is absent here, so anything that
+-- joins memory_fts to this view (scripts/recall.sh) cannot surface it.
+CREATE VIEW v_memory_addr AS
+SELECT mk.source_table, mi.id AS source_id, mk.in_registry,
+       CASE WHEN mk.name IN ('project','reference') THEN mi.name ELSE mi.slug END AS name,
+       mk.name AS type,
+       CASE WHEN mk.name IN ('feedback','skill') THEN COALESCE(NULLIF(mi.description,''), fd.rule)
+            ELSE mi.description END AS description,
+       mi.path
+FROM memory_item mi
+JOIN memory_kind mk ON mk.id = mi.kind_id
+LEFT JOIN feedback_detail fd ON fd.item_id = mi.id
+WHERE mi.opsec_level IS NULL OR mi.opsec_level != 'compartmented';
+
+-- memories: 4 columns — name · type · description · path. The registry.
+CREATE VIEW memories AS
+    SELECT name, type, description, path FROM v_memory_addr WHERE in_registry = 1;
 
 -- ============================================================================
 -- Health & diagnostics
@@ -192,7 +252,9 @@ UNION ALL SELECT 'ptl_items', COUNT(*) FROM ptl_items
 UNION ALL SELECT 'pending_items', COUNT(*) FROM pending_items
 UNION ALL SELECT 'associations', COUNT(*) FROM associations
 UNION ALL SELECT 'memory_confidence', COUNT(*) FROM memory_confidence
-UNION ALL SELECT 'memory_evidence', COUNT(*) FROM memory_evidence;
+UNION ALL SELECT 'memory_evidence', COUNT(*) FROM memory_evidence
+UNION ALL SELECT 'memory_item', COUNT(*) FROM memory_item
+UNION ALL SELECT 'memories', COUNT(*) FROM memories;
 
 CREATE VIEW v_ingest_recent AS
 SELECT source_file, table_name, action, MAX(timestamp) as last_ingest
@@ -292,10 +354,6 @@ ORDER BY vmd.effective_confidence ASC;
 -- Indexes
 -- ============================================================================
 
-CREATE INDEX idx_feedback_domain ON feedback(domain);
-CREATE INDEX idx_feedback_slug ON feedback(slug);
-CREATE INDEX idx_projects_domain ON projects(domain);
-CREATE INDEX idx_projects_status ON projects(status);
 CREATE INDEX idx_ptl_tier_status ON ptl_items(tier, status);
 CREATE INDEX idx_ptl_stable_id ON ptl_items(stable_id);
 CREATE INDEX idx_sessions_number ON sessions(number);

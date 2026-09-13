@@ -25,9 +25,10 @@ What the memory system provides to the rest of Trellis.
 |-----------|-------------|-------|
 | Sync (commit + push) | `scripts/memory-sync.sh` | Flags: `--quick`, `--verify-only` |
 | Health metrics | `scripts/health-check.sh` | Returns: pressure, fragmentation, volatility, drift |
-| DB rebuild | `scripts/rebuild-trellis-db.sh` | Atomic swap, optional (DB is read cache) |
-| Ingest .md → SQL | `scripts/ingest-memories.sh` | `--check-untagged` for hygiene scan |
-| Full-text search | `SELECT ... FROM memory_fts WHERE memory_fts MATCH ?` | FTS5, porter tokenizer |
+| DB rebuild | `scripts/rebuild-trellis-db.sh` | Atomic swap; runs the ingest itself; refuses (exit 3) rather than swap in a database that holds fewer rows than there are typed memory files |
+| Ingest .md → SQL | `scripts/ingest-memories.sh` | Bare call = every typed memory file → one `memory_item` row; `--check-untagged` for hygiene scan |
+| Memory registry | `SELECT name, type, description, path FROM memories` | Every memory with an openable path (relative to `memory/`) |
+| Full-text search | `SELECT ... FROM memory_fts WHERE memory_fts MATCH ?` | FTS5, porter tokenizer; columns `source_table, source_id, title, content, path` — join `v_memory_addr` on `(source_table, source_id)` for the address |
 | Ranked search | `SELECT ... FROM v_fts_confidence WHERE memory_fts MATCH ?` | Text × confidence × recency |
 | Staleness check | `SELECT * FROM v_memories_stale` | Below 50% confidence, needs verification |
 | Compression candidates | `SELECT * FROM v_compression_candidates` | 4-stage: FULL → SUMMARY → ONE-LINER → ARCHIVE |

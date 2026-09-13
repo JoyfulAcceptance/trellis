@@ -56,6 +56,20 @@ corrections=0
 echo "Corrections: $corrections"
 echo "Memory files: $(find "$TRELLIS/memory" -name '*.md' 2>/dev/null | wc -l)"
 
+# Memory database — counts only: typed files on disk, rows in the registry,
+# files that carry no type: (and so are not rows).
+if [ -f "$SCRIPT_DIR/lib/memory-files.sh" ]; then
+    . "$SCRIPT_DIR/lib/memory-files.sh"
+    db_typed=$(count_typed_memories "$TRELLIS")
+    db_untyped=$(count_untyped_memories "$TRELLIS")
+    db_file="$TRELLIS/$(get_config "database.path" "trellis.db")"
+    db_rows="n/a"
+    if [ -f "$db_file" ] && command -v sqlite3 >/dev/null 2>&1; then
+        db_rows=$(sqlite3 "$db_file" "SELECT COUNT(*) FROM memories;" 2>/dev/null || echo "n/a (schema out of date)")
+    fi
+    echo "Memory database: $db_rows memories / $db_typed typed files ($db_untyped without type:)"
+fi
+
 mem_lines=0
 [ -f "$TRELLIS/memory/MEMORY.md" ] && mem_lines=$(wc -l < "$TRELLIS/memory/MEMORY.md")
 echo "MEMORY.md lines: $mem_lines / $memory_cap"

@@ -2,6 +2,8 @@
 *.db
 *.db-wal
 *.db-shm
+# Derived on every rebuild from memory/*.md by ingest-memories.sh --all
+scripts/db/data-memories.sql
 
 # Session state (ephemeral)
 .session-active

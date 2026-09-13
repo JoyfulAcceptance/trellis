@@ -82,4 +82,14 @@ if grep -ri 'Bruce\|Argus\|aurasys\|/home/' "$T/memory/" "$T/directives.md" "$T/
     errors=$((errors + 1))
 fi
 
+# No derived seed is ever committed. scripts/db/ ships the schema and the
+# views and nothing else; data-memories.sql is regenerated on every rebuild
+# from the install's own memory files, so a committed copy would be one
+# install's memories shipped to every other.
+db_files=$(git -C "$REPO" ls-files template/scripts/db/ 2>/dev/null | sort | tr '\n' ' ' | sed 's/ $//')
+if [ "$db_files" != "template/scripts/db/schema.sql template/scripts/db/views.sql" ]; then
+    echo "template/scripts/db/ must hold exactly schema.sql and views.sql; git tracks: $db_files" >&2
+    errors=$((errors + 1))
+fi
+
 exit "$errors"

@@ -178,16 +178,16 @@ mk_memory "$FIXL" project-b project
 mk_memory "$FIXL" reference-c reference
 
 # stub_ingest DIR — replace the install's ingest with one that writes an EMPTY
-# seed for whatever --output it is given and exits 0: the shape of a parser
-# that silently matches nothing.
+# seed (data-memories.sql, or whatever --output it is given) and exits 0: the
+# shape of a parser that silently matches nothing.
 stub_ingest() {
     cat > "$1/scripts/ingest-memories.sh" <<'STUB'
 #!/usr/bin/env bash
-out=""
+out="scripts/db/data-memories.sql"
 while [ "$#" -gt 0 ]; do
     case "$1" in --output) out="$2"; shift 2 ;; *) shift ;; esac
 done
-[ -n "$out" ] && printf -- '-- empty\n' > "${TRELLIS_HOME}/${out}"
+printf -- '-- empty\n' > "${TRELLIS_HOME}/${out}"
 exit 0
 STUB
     chmod +x "$1/scripts/ingest-memories.sh"

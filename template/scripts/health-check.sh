@@ -306,22 +306,24 @@ if [ "$db_enabled" = "true" ]; then
         table_count=$(sqlite3 "$db_path" "SELECT count(*) FROM sqlite_master WHERE type='table';" 2>/dev/null || echo 0)
         integrity=$(sqlite3 "$db_path" "PRAGMA integrity_check;" 2>/dev/null || echo "FAIL")
         # Rows the database actually holds. Layer 4 of the old check asked
-        # "tables >= 15 and integrity ok" — true of an empty database.
-        content_rows=$(sqlite3 "$db_path" "SELECT (SELECT COUNT(*) FROM feedback) + (SELECT COUNT(*) FROM projects) + (SELECT COUNT(*) FROM \"references\") + (SELECT COUNT(*) FROM user_profile);" 2>/dev/null || echo "?")
+        # "tables >= 15 and integrity ok" — true of an empty database. The
+        # `memories` view is the registry; a database without it predates
+        # the supertype schema and must be rebuilt.
+        content_rows=$(sqlite3 "$db_path" "SELECT COUNT(*) FROM memories;" 2>/dev/null || echo "?")
         if [ "$integrity" != "ok" ] || [ "$table_count" -lt 15 ]; then
             echo "  sqlite:        ON ($table_count tables, integrity: $integrity)  [WARN]"
             do_next "Run scripts/rebuild-trellis-db.sh to rebuild the DB from flat files (flat files are the source of truth)."
             warnings=$((warnings + 1))
         elif [ "$content_rows" = "?" ]; then
-            echo "  sqlite:        ON ($table_count tables, content rows unreadable)  [WARN]"
-            do_next "Run scripts/rebuild-trellis-db.sh — the database schema does not answer the row count."
+            echo "  sqlite:        ON ($table_count tables, schema is out of date — no memories view)  [WARN]"
+            do_next "Run scripts/rebuild-trellis-db.sh — the database predates the current schema."
             warnings=$((warnings + 1))
-        elif [ "$typed_files" -gt 0 ] && [ "$content_rows" -eq 0 ]; then
-            echo "  sqlite:        ON ($table_count tables, $content_rows content rows / $typed_files typed files, integrity OK)  [WARN]"
-            do_next "Run scripts/rebuild-trellis-db.sh and read what it says — the database holds none of your $typed_files memories."
+        elif [ "$content_rows" -lt "$typed_files" ]; then
+            echo "  sqlite:        ON ($table_count tables, $content_rows memories / $typed_files typed files, integrity OK)  [WARN]"
+            do_next "Run scripts/rebuild-trellis-db.sh and read what it says — the database holds $content_rows of your $typed_files memories."
             warnings=$((warnings + 1))
         else
-            echo "  sqlite:        ON ($table_count tables, $content_rows content rows / $typed_files typed files, integrity OK)  [OK]"
+            echo "  sqlite:        ON ($table_count tables, $content_rows memories / $typed_files typed files, integrity OK)  [OK]"
             checks_ok=$((checks_ok + 1))
         fi
     elif [ ! -f "$db_path" ]; then

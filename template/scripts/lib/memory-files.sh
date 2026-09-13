@@ -7,11 +7,12 @@
 # files on disk, 0 rows loaded") and the health line ("R memories / F typed
 # files") must count the SAME files by the SAME rule, or one of them lies.
 #
-# The rule mirrors ingest-memories.sh's extract_frontmatter_field: the
-# frontmatter is everything between the first two `---` fences (CR-stripped,
-# so a CRLF file counts), and `type:` may sit at the top level or indented
-# under `metadata:`. A file with no frontmatter, or frontmatter without
-# `type:`, is not typed and is never expected to be a row.
+# The rule mirrors ingest-memories.sh's frontmatter_block: the frontmatter
+# is the block between a `---` fence on LINE 1 and the next `---` (CR-stripped,
+# so a CRLF file counts); a `---` further down is a horizontal rule. `type:`
+# may sit at the top level or indented under `metadata:`. A file with no
+# frontmatter, or frontmatter without `type:`, is not typed and is never
+# expected to be a row.
 #
 # Portability: bash 3.2 / BSD userland — awk and tr only.
 
@@ -20,8 +21,9 @@ memory_file_is_typed() {
     local file="$1"
     [ -f "$file" ] || return 1
     tr -d '\r' < "$file" | awk '
-        /^---$/ { fence++; if (fence >= 2) exit; next }
-        fence == 1 && /^[[:space:]]*type:[[:space:]]*[^[:space:]]/ { found = 1; exit }
+        NR == 1 { if ($0 != "---") exit 1; next }
+        /^---$/ { exit(found ? 0 : 1) }
+        /^[[:space:]]*type:[[:space:]]*[^[:space:]]/ { found = 1; exit 0 }
         END { exit(found ? 0 : 1) }
     '
 }

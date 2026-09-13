@@ -85,11 +85,12 @@ verbatim into each script (no external sourcing — each script is self-containe
 |   +-- topology-check.sh      Governance axis count
 |   +-- assemble-directives.sh Plugin directives assembly
 |   +-- wire-platform.sh       Activation block generator
-|   +-- rebuild-trellis-db.sh          SQLite DB rebuild (optional)
-|   +-- ingest-memories.sh     .md -> SQL parser (optional)
+|   +-- rebuild-trellis-db.sh  SQLite DB rebuild (optional; runs the ingest, refuses a short database)
+|   +-- ingest-memories.sh     .md -> SQL parser: every typed memory file -> one memory_item row
 |   +-- db/
-|       +-- schema.sql          DB schema
-|       +-- views.sql           Query views
+|       +-- schema.sql          DB schema (memory_item supertype; legacy names are views)
+|       +-- views.sql           Query views (memories, v_memory_addr, ...)
+|       +-- data-memories.sql   DERIVED seed, regenerated on every rebuild (gitignored)
 +-- .git/                      (if Tier 1+)
 ```
 
@@ -202,9 +203,13 @@ Memories below `staleness_threshold` flagged for verification before citing.
 
 ## OPSEC Compartmentation
 
-Optional `opsec_level` field on people, feedback, projects, references.
-`v_people_safe` excludes restricted records. `v_compartmented` lists all
-records with opsec_level set. FTS5 does not filter by opsec_level.
+Optional `opsec_level` field on people and on every memory (`memory_item`,
+from the frontmatter `opsec:` key; the legacy names feedback, projects,
+references resolve to it). `v_people_safe` excludes restricted records.
+`v_compartmented` lists all records with opsec_level set. Compartmented
+memories are not indexed into `memory_fts` and are absent from
+`v_memory_addr` / `memories`, so `scripts/recall.sh` cannot surface them;
+`restricted` is do-not-publish, not do-not-surface, and is never filtered.
 
 ## Licensing
 

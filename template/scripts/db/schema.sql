@@ -33,64 +33,61 @@ CREATE TABLE correction_connections(
     PRIMARY KEY (correction_id, connected_id)
 );
 
-CREATE TABLE feedback(
-    id INTEGER PRIMARY KEY,
-    slug TEXT UNIQUE NOT NULL,
-    rule TEXT,
-    why TEXT,
-    how_to_apply TEXT,
-    content TEXT,
-    established TEXT,
-    last_triggered TEXT,
-    source TEXT,
-    domain TEXT NOT NULL DEFAULT 'general',
-    opsec_level TEXT CHECK(opsec_level IN ('public', 'trusted', 'restricted', 'compartmented')),
+-- ============================================================================
+-- Memory supertype: one row per memory FILE, whatever its kind
+-- ============================================================================
+-- Every memory file with a frontmatter type: is exactly one memory_item row.
+-- The kind is data (memory_kind), not a table name, so a type: the schema has
+-- never heard of still lands (as 'other'), is still searchable, and is still
+-- openable by path. Kind-specific fields live in *_detail tables keyed by
+-- item_id. The legacy names feedback / projects / "references" / user_profile
+-- are VIEWS over this table (views.sql), so every inherited query still runs.
+
+CREATE TABLE memory_kind (
+    id           INTEGER PRIMARY KEY,
+    name         TEXT NOT NULL UNIQUE,     -- the frontmatter type: value
+    source_table TEXT NOT NULL,            -- legacy name reported by memory_fts / v_memory_addr
+    in_registry  INTEGER NOT NULL CHECK (in_registry IN (0,1)),
+    file_backed  INTEGER NOT NULL CHECK (file_backed IN (0,1))
+);
+INSERT INTO memory_kind(id, name, source_table, in_registry, file_backed) VALUES
+    (1,'feedback', 'feedback',     1, 1),
+    (2,'skill',    'skill',        1, 1),
+    (3,'project',  'projects',     1, 1),
+    (4,'reference','references',   1, 1),
+    (5,'user',     'user_profile', 1, 1),
+    (6,'other',    'other',        1, 1);   -- any type: this table does not name. Landed, reported, never dropped.
+
+CREATE TABLE memory_item (
+    id             INTEGER PRIMARY KEY,
+    kind_id        INTEGER NOT NULL REFERENCES memory_kind(id),
+    slug           TEXT NOT NULL,
+    name           TEXT NOT NULL,          -- frontmatter name:, else slug
+    description    TEXT,                   -- frontmatter description:
+    content        TEXT,                   -- the whole body. Every kind. This is what makes search work.
+    why            TEXT,
+    how_to_apply   TEXT,
+    domain         TEXT NOT NULL DEFAULT 'general',
+    opsec_level    TEXT CHECK (opsec_level IS NULL OR opsec_level IN ('public','trusted','restricted','compartmented')),
     compaction_tag TEXT,
-    source_file TEXT,
-    created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now'))
+    established    TEXT,
+    source_file    TEXT NOT NULL,          -- basename ingest read
+    path           TEXT NOT NULL,          -- openable address, relative to memory/ (= source_file for file-backed kinds)
+    created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at     TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (kind_id, slug)
 );
+CREATE INDEX idx_memory_item_kind   ON memory_item(kind_id);
+CREATE INDEX idx_memory_item_slug   ON memory_item(slug);
+CREATE INDEX idx_memory_item_domain ON memory_item(domain);
+CREATE INDEX idx_memory_item_source ON memory_item(source_file);
 
-CREATE TABLE projects(
-    id INTEGER PRIMARY KEY,
-    slug TEXT UNIQUE NOT NULL,
-    name TEXT,
-    status TEXT DEFAULT 'active'
-        CHECK(status IN ('active', 'stale', 'archived', 'blocked', 'complete')),
-    description TEXT,
-    why TEXT,
-    how_to_apply TEXT,
-    content TEXT,
-    domain TEXT NOT NULL DEFAULT 'general',
-    opsec_level TEXT CHECK(opsec_level IN ('public', 'trusted', 'restricted', 'compartmented')),
-    compaction_tag TEXT,
-    source_file TEXT,
-    created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now'))
-);
+CREATE TABLE feedback_detail ( item_id INTEGER PRIMARY KEY REFERENCES memory_item(id) ON DELETE CASCADE, rule TEXT );
+CREATE TABLE project_detail  ( item_id INTEGER PRIMARY KEY REFERENCES memory_item(id) ON DELETE CASCADE, status TEXT NOT NULL DEFAULT 'active' );
+CREATE TABLE user_detail     ( item_id INTEGER PRIMARY KEY REFERENCES memory_item(id) ON DELETE CASCADE, attribute TEXT, context TEXT );
 
-CREATE TABLE "references"(
-    id INTEGER PRIMARY KEY,
-    slug TEXT UNIQUE NOT NULL,
-    name TEXT NOT NULL,
-    path_or_url TEXT,
-    description TEXT,
-    opsec_level TEXT CHECK(opsec_level IN ('public', 'trusted', 'restricted', 'compartmented')),
-    source_file TEXT,
-    created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now'))
-);
-
-CREATE TABLE user_profile(
-    id INTEGER PRIMARY KEY,
-    slug TEXT UNIQUE NOT NULL,
-    attribute TEXT NOT NULL,
-    value TEXT,
-    context TEXT,
-    source_file TEXT,
-    created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now'))
-);
+CREATE TRIGGER memory_item_updated AFTER UPDATE ON memory_item
+BEGIN UPDATE memory_item SET updated_at = datetime('now') WHERE id = NEW.id; END;
 
 CREATE TABLE people(
     id INTEGER PRIMARY KEY,
@@ -319,18 +316,6 @@ CREATE TABLE ingest_log(
 CREATE TRIGGER corrections_updated AFTER UPDATE ON corrections
 BEGIN UPDATE corrections SET updated_at = datetime('now') WHERE id = NEW.id; END;
 
-CREATE TRIGGER feedback_updated AFTER UPDATE ON feedback
-BEGIN UPDATE feedback SET updated_at = datetime('now') WHERE id = NEW.id; END;
-
-CREATE TRIGGER projects_updated AFTER UPDATE ON projects
-BEGIN UPDATE projects SET updated_at = datetime('now') WHERE id = NEW.id; END;
-
-CREATE TRIGGER references_updated AFTER UPDATE ON "references"
-BEGIN UPDATE "references" SET updated_at = datetime('now') WHERE id = NEW.id; END;
-
-CREATE TRIGGER user_profile_updated AFTER UPDATE ON user_profile
-BEGIN UPDATE user_profile SET updated_at = datetime('now') WHERE id = NEW.id; END;
-
 CREATE TRIGGER people_updated AFTER UPDATE ON people
 BEGIN UPDATE people SET updated_at = datetime('now') WHERE id = NEW.id; END;
 
@@ -361,21 +346,19 @@ BEGIN
             ' rows — consider compacting', 'open', 'LATER', 'memory');
 END;
 
-CREATE TRIGGER feedback_compaction_preserve BEFORE UPDATE ON feedback
-WHEN OLD.compaction_tag = 'NEVER COMPACT' AND NEW.compaction_tag != 'NEVER COMPACT'
-BEGIN
-    SELECT RAISE(ABORT, 'Cannot remove NEVER COMPACT tag');
-END;
 
 -- ============================================================================
 -- FTS5 full-text search
 -- ============================================================================
 
+-- Column order is a contract: snippet(memory_fts, 3, ...) means the body.
+-- path is LAST and UNINDEXED — an address, not searchable text.
 CREATE VIRTUAL TABLE memory_fts USING fts5(
     source_table,
     source_id UNINDEXED,
     title,
     content,
+    path UNINDEXED,
     tokenize='porter unicode61'
 );
 
@@ -387,6 +370,8 @@ INSERT INTO confidence_config VALUES ('user_profile', 365, 0, 'User facts — sl
 INSERT INTO confidence_config VALUES ('feedback', 90, 0, 'Behavioral rules — moderate decay');
 INSERT INTO confidence_config VALUES ('projects', 60, 0, 'Project state — fast decay');
 INSERT INTO confidence_config VALUES ('references', 180, 0, 'External resources — moderate decay');
+INSERT INTO confidence_config VALUES ('skill', 180, 0, 'Procedures — moderate decay');
+INSERT INTO confidence_config VALUES ('other', 180, 0, 'Unclassified kinds — moderate decay');
 INSERT INTO confidence_config VALUES ('corrections', NULL, 1, 'Corrections — pinned, no decay');
 INSERT INTO confidence_config VALUES ('decisions', 90, 0, 'Decision context — moderate decay');
 INSERT INTO confidence_config VALUES ('breakthroughs', 180, 0, 'Analytical advances persist');

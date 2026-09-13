@@ -180,16 +180,23 @@ run_ingest() {
 # nothing was loaded, and "Rebuild complete" printed over an empty database.
 # A rebuild is by definition the moment the seeds should reflect the files.
 if [ -x "$_TR_INGEST" ]; then
-    echo "rebuild-trellis-db: regenerating the memory seeds from markdown."
+    echo "rebuild-trellis-db: regenerating the memory seed from markdown."
     # NOTE: regenerate ONLY where markdown is the superset. If rows exist
     # only in SQL, extract them to markdown FIRST — or this DELETES them.
-    run_ingest feedback   "$_TR_INGEST" --type feedback  --glob "memory/feedback-*.md"  --output scripts/db/data-feedback.sql
-    run_ingest projects   "$_TR_INGEST" --type project   --glob "memory/project-*.md"   --output scripts/db/data-projects.sql
-    run_ingest references "$_TR_INGEST" --type reference --glob "memory/reference-*.md" --output scripts/db/data-references.sql
-    run_ingest user       "$_TR_INGEST" --type user      --glob "memory/user-*.md"      --output scripts/db/data-user.sql
+    run_ingest all "$_TR_INGEST" --all
 else
     echo "rebuild-trellis-db: ${_TR_INGEST} is not executable — no memory seed regenerated" >&2
 fi
+
+# Legacy per-type seeds (pre-0.6.0) INSERT into tables that are now views.
+# Loading one would fail the build. They are derived files — regenerable from
+# the markdown — so removing them loses nothing. Named, so the removal is seen.
+for _legacy in data-feedback.sql data-projects.sql data-references.sql data-user.sql; do
+    if [ -f "${DB_DIR}/${_legacy}" ]; then
+        rm -f "${DB_DIR}/${_legacy}"
+        echo "rebuild-trellis-db: removed legacy seed ${_legacy} (superseded by data-memories.sql)"
+    fi
+done
 
 # Step 3: Load data (if data scripts exist)
 #
@@ -199,7 +206,12 @@ fi
 _TR_SEEDS=0
 for f in "${SCRIPT_DIR}"/db/data-*.sql; do
     [ -f "$f" ] || continue
-    sqlite3 "$DB_NEW" < "$f"
+    # sqlite3 keeps going past a rejected statement and exits 1 at the end.
+    # The rejection is printed above; the per-file check (CHECK-M1) below
+    # names which memory it cost, and refuses. Aborting here would leave
+    # the .bak in place with no verdict.
+    sqlite3 "$DB_NEW" < "$f" \
+        || echo "rebuild-trellis-db: $(basename "$f") had statement(s) rejected — see the sqlite3 error(s) above" >&2
     _TR_SEEDS=$((_TR_SEEDS + 1))
 done
 if [ "$_TR_SEEDS" -eq 0 ]; then
@@ -218,7 +230,7 @@ _TR_TYPED=$(count_typed_memories "$TRELLIS")
 # the empty database would make every DB-backed retrieval report "not in
 # memory" while the files sit there. Refuse; keep the previous database.
 if [ "${TRELLIS_DB_CHECK:-on}" != "off" ]; then
-    _TR_ROWS=$(sqlite3 "$DB_NEW" "SELECT (SELECT COUNT(*) FROM feedback) + (SELECT COUNT(*) FROM projects) + (SELECT COUNT(*) FROM \"references\") + (SELECT COUNT(*) FROM user_profile);" 2>/dev/null || echo 0)
+    _TR_ROWS=$(sqlite3 "$DB_NEW" "SELECT COUNT(*) FROM memory_item;" 2>/dev/null || echo 0)
     if [ "$_TR_TYPED" -gt 0 ] && [ "$_TR_ROWS" -eq 0 ]; then
         echo "rebuild-trellis-db: REFUSED — ${_TR_TYPED} typed memory file(s) on disk, 0 rows loaded." >&2
         echo "  A database that holds nothing would report \"integrity OK\". Not swapping; previous DB restored." >&2
@@ -231,48 +243,60 @@ if [ "$_TR_TYPED" -eq 0 ]; then
 fi
 # <<< CHECK-L2
 
+# >>> CHECK-M1
+# Every typed file is a row. The coarse check above catches "nothing loaded";
+# this one catches "all but one" — an INSERT rejected by a CHECK constraint,
+# or never emitted — by name. Same rule for "typed" on both sides
+# (lib/memory-files.sh), so the two lists are comparable.
+if [ "${TRELLIS_DB_CHECK:-on}" != "off" ] && [ "$_TR_TYPED" -gt 0 ]; then
+    _TR_EXPECTED=$(list_typed_memories "$TRELLIS")
+    _TR_GOT=$(sqlite3 "$DB_NEW" "SELECT source_file FROM memory_item;" 2>/dev/null | sort)
+    # comm -23: lines only in the first (expected) list. Both sides sorted by
+    # the same sort, so the comparison is exact.
+    _TR_MISSING=$(comm -23 <(printf '%s\n' "$_TR_EXPECTED" | sort) <(printf '%s\n' "$_TR_GOT"))
+    if [ -n "$_TR_MISSING" ]; then
+        _TR_NMISS=$(printf '%s\n' "$_TR_MISSING" | grep -c . || true)
+        echo "rebuild-trellis-db: REFUSED — ${_TR_NMISS} typed memory file(s) reached no row: $(printf '%s\n' "$_TR_MISSING" | tr '\n' ' ')" >&2
+        echo "  Their INSERT was rejected or never emitted. Run: scripts/ingest-memories.sh --file memory/<name> | sqlite3 :memory: to see why." >&2
+        echo "  Not swapping; previous DB restored.   Override once: TRELLIS_DB_CHECK=off" >&2
+        restore_backup 3
+    fi
+fi
+# <<< CHECK-M1
+
 # Step 4: Populate FTS5
+# ONE statement, over the supertype. The old UNION had arms for corrections,
+# people, sessions, decisions and breakthroughs; nothing in the shipped
+# scripts writes those tables (measured), and a future writer should go
+# through memory_item so it is searchable AND openable by path.
 sqlite3 "$DB_NEW" <<'FTS'
 DELETE FROM memory_fts;
-
-INSERT INTO memory_fts(source_table, source_id, title, content)
-SELECT 'corrections', id, title, context FROM corrections
-UNION ALL
-SELECT 'feedback', id, slug, content FROM feedback
-    WHERE opsec_level IS NULL OR opsec_level != 'compartmented'
-UNION ALL
-SELECT 'projects', id, slug, content FROM projects
-    WHERE opsec_level IS NULL OR opsec_level != 'compartmented'
-UNION ALL
-SELECT 'people', id, name, description FROM people
-    WHERE opsec_level IS NULL OR opsec_level != 'compartmented'
-UNION ALL
-SELECT 'references', id, name, description FROM "references"
-    WHERE opsec_level IS NULL OR opsec_level != 'compartmented'
-UNION ALL
-SELECT 'sessions', id, CAST(number AS TEXT), summary FROM sessions
-UNION ALL
-SELECT 'decisions', id, topic, decision || ' ' || COALESCE(rationale, '') FROM decisions
-UNION ALL
-SELECT 'breakthroughs', id, title, description FROM breakthroughs;
+INSERT INTO memory_fts(source_table, source_id, title, content, path)
+SELECT mk.source_table, mi.id, mi.name,
+       TRIM(COALESCE(mi.content,'') || ' ' || COALESCE(mi.description,'')), mi.path
+FROM memory_item mi JOIN memory_kind mk ON mk.id = mi.kind_id
+WHERE mi.opsec_level IS NULL OR mi.opsec_level != 'compartmented';
 FTS
 
-# Step 5: Git-based confidence reinforcement
+# Step 4b: Confidence rows. memory_confidence had no writer before 0.6.0, so
+# the decay views and the staleness pre-flight were reporting over an empty
+# table. Defaults come from confidence_config by legacy table name.
+sqlite3 "$DB_NEW" <<'CONF'
+INSERT OR IGNORE INTO memory_confidence(source_table, source_id, base_confidence, half_life_days, pinned)
+SELECT mk.source_table, mi.id, 1.0, cc.default_half_life_days, COALESCE(cc.default_pinned,0)
+FROM memory_item mi JOIN memory_kind mk ON mk.id = mi.kind_id
+LEFT JOIN confidence_config cc ON cc.source_table = mk.source_table;
+CONF
+
+# Step 5: Git-based confidence reinforcement — one loop over every memory file
 cd "$TRELLIS"
-for f in memory/feedback-*.md memory/project-*.md memory/reference-*.md memory/user-*.md; do
+for f in memory/*.md; do
     [ -f "$f" ] || continue
     git_date=$(git log -1 --date=format:'%Y-%m-%d %H:%M:%S' --format='%ad' -- "$f" 2>/dev/null) || true
     [ -z "$git_date" ] && continue
     base=$(basename "$f")
-    case "$base" in
-        feedback-*)  tbl="feedback"; slug="${base#feedback-}"; slug="${slug%.md}" ;;
-        project-*)   tbl="projects"; slug="${base#project-}"; slug="${slug%.md}" ;;
-        reference-*) tbl="references"; slug="${base#reference-}"; slug="${slug%.md}" ;;
-        user-*)      tbl="user_profile"; slug="${base#user-}"; slug="${slug%.md}" ;;
-        *) continue ;;
-    esac
-    escaped_slug=$(echo "$slug" | sed "s/'/''/g")
-    sqlite3 "$DB_NEW" "UPDATE memory_confidence SET last_reinforced = '${git_date}' WHERE source_table = '${tbl}' AND source_id = (SELECT id FROM \"${tbl}\" WHERE slug = '${escaped_slug}');" 2>/dev/null || true
+    escaped_base=$(echo "$base" | sed "s/'/''/g")
+    sqlite3 "$DB_NEW" "UPDATE memory_confidence SET last_reinforced = '${git_date}' WHERE last_reinforced IS NULL AND source_id = (SELECT id FROM memory_item WHERE source_file = '${escaped_base}') AND source_table = (SELECT mk.source_table FROM memory_item mi JOIN memory_kind mk ON mk.id = mi.kind_id WHERE mi.source_file = '${escaped_base}');" 2>/dev/null || true
 done
 
 # Step 5b: Session-summary reinforcement for non-file-backed tables
@@ -297,6 +321,51 @@ FROM (
 WHERE source_table = 'decisions' AND source_id = sub.id
 AND (last_reinforced IS NULL OR last_reinforced < sub.max_date);
 REINFORCE
+
+# >>> CHECK-M2
+# FTS is populated — in ROWS and in BYTES. A search table with a row per
+# memory and no body behind it answers every query "no match", which reads
+# as "not in memory". Every row must carry a path, or a hit cannot be opened.
+if [ "${TRELLIS_DB_CHECK:-on}" != "off" ]; then
+    _TR_ITEMS=$(sqlite3 "$DB_NEW" "SELECT COUNT(*) FROM memory_item WHERE opsec_level IS NULL OR opsec_level != 'compartmented';")
+    _TR_FTS_ROWS=$(sqlite3 "$DB_NEW" "SELECT COUNT(*) FROM memory_fts;")
+    _TR_ITEM_BYTES=$(sqlite3 "$DB_NEW" "SELECT COALESCE(SUM(length(content)),0) FROM memory_item WHERE opsec_level IS NULL OR opsec_level != 'compartmented';")
+    _TR_FTS_BYTES=$(sqlite3 "$DB_NEW" "SELECT COALESCE(SUM(length(content)),0) FROM memory_fts;")
+    _TR_FTS_NOPATH=$(sqlite3 "$DB_NEW" "SELECT COUNT(*) FROM memory_fts WHERE path IS NULL OR path = '';")
+    _TR_FTS_OK=1
+    [ "$_TR_FTS_ROWS" -eq "$_TR_ITEMS" ] || _TR_FTS_OK=0
+    [ "$_TR_FTS_NOPATH" -eq 0 ] || _TR_FTS_OK=0
+    # bytes: fts >= 0.9 * items, in integer arithmetic
+    [ $((_TR_FTS_BYTES * 10)) -ge $((_TR_ITEM_BYTES * 9)) ] || _TR_FTS_OK=0
+    if [ "$_TR_FTS_OK" -eq 0 ]; then
+        echo "rebuild-trellis-db: REFUSED — memory_fts is under-populated: ${_TR_FTS_ROWS} rows for ${_TR_ITEMS} memories, ${_TR_FTS_BYTES} bytes indexed of ${_TR_ITEM_BYTES}, ${_TR_FTS_NOPATH} row(s) without a path." >&2
+        echo "  A search table that holds less than the memories answers 'no match' for what is on disk." >&2
+        echo "  Not swapping; previous DB restored.   Override once: TRELLIS_DB_CHECK=off" >&2
+        restore_backup 3
+    fi
+fi
+# <<< CHECK-M2
+
+# Population report — REPORT, not refuse. A column that is empty across every
+# row is either a parser defect or intentionally so; either way it is named.
+for _tbl in memory_item feedback_detail project_detail user_detail memory_confidence; do
+    _n=$(sqlite3 "$DB_NEW" "SELECT COUNT(*) FROM ${_tbl};" 2>/dev/null || echo 0)
+    [ "$_n" -gt 0 ] || continue
+    sqlite3 "$DB_NEW" "PRAGMA table_info(${_tbl});" | awk -F'|' '{print $2}' | while IFS= read -r _col; do
+        [ -n "$_col" ] || continue
+        _filled=$(sqlite3 "$DB_NEW" "SELECT COUNT(*) FROM ${_tbl} WHERE ${_col} IS NOT NULL AND CAST(${_col} AS TEXT) != '';" 2>/dev/null || echo "$_n")
+        if [ "$_filled" -eq 0 ]; then
+            echo "rebuild-trellis-db: column ${_tbl}.${_col} is empty (0/${_n}) — a defect or intentionally so"
+        fi
+    done
+done
+_TR_CENSUS=$(sqlite3 "$DB_NEW" "SELECT mk.name || ' ' || COUNT(mi.id) FROM memory_kind mk LEFT JOIN memory_item mi ON mi.kind_id = mk.id GROUP BY mk.id ORDER BY mk.id;" | tr '\n' '|' | sed 's/|$//; s/|/ · /g')
+_TR_OTHERS=$(sqlite3 "$DB_NEW" "SELECT mi.source_file FROM memory_item mi JOIN memory_kind mk ON mk.id = mi.kind_id WHERE mk.name = 'other' ORDER BY mi.source_file;" | tr '\n' ' ')
+if [ -n "$_TR_OTHERS" ]; then
+    echo "rebuild-trellis-db: kinds — ${_TR_CENSUS} (${_TR_OTHERS% })"
+else
+    echo "rebuild-trellis-db: kinds — ${_TR_CENSUS}"
+fi
 
 # Step 6: Verify
 integrity=$(sqlite3 "$DB_NEW" "PRAGMA integrity_check;")
@@ -341,4 +410,5 @@ rm -f "$DB_BAK"
 # change sit uninstalled forever.
 compute_staleness_key > "$DB_CHECKSUM"
 
-echo "Rebuild complete: $DB (${final_tables} tables, integrity OK)"
+final_memories=$(sqlite3 "$DB" "SELECT COUNT(*) FROM memories;" 2>/dev/null || echo "?")
+echo "Rebuild complete: $DB (${final_tables} tables, ${final_memories} memories / ${_TR_TYPED} typed files, integrity OK)"

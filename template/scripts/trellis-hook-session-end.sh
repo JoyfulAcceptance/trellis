@@ -22,6 +22,13 @@ resolve_trellis_home() {
 TRELLIS="$(resolve_trellis_home)"
 [ -d "$TRELLIS" ] || exit 0
 
+# Session-log row from .session-events, BEFORE the sync commits memory/.
+# Idempotent with the agent's own directive step 6: no events file, no row.
+# Output is shown; only the exit status is tolerated.
+if [ -x "$TRELLIS/scripts/record-session.sh" ]; then
+    bash "$TRELLIS/scripts/record-session.sh" || true
+fi
+
 # Memory sync (local commit)
 if [ -x "$TRELLIS/scripts/memory-sync.sh" ]; then
     bash "$TRELLIS/scripts/memory-sync.sh" 2>/dev/null || true

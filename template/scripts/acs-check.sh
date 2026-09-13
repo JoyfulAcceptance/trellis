@@ -69,10 +69,35 @@ else
 fi
 
 if [ "$total_sessions" -lt "$acs_min_sessions" ]; then
+    # WHY there is not enough data. "Insufficient" on an install with many
+    # sessions means session ends are not producing rows. Count the
+    # "Memory sync:" commits since the last row's date: each is a session
+    # that ended without scripts/record-session.sh.
+    starved_last_id=""
+    starved_last_date=""
+    if [ -n "$session_data" ]; then
+        starved_last_id=$(echo "$session_data" | tail -1 | cut -d'|' -f1)
+        starved_last_date=$(echo "$session_data" | tail -1 | cut -d'|' -f2)
+    fi
+    starved_ends="n/a (no git)"
+    if command -v git >/dev/null 2>&1 && git -C "$TRELLIS" rev-parse --git-dir >/dev/null 2>&1; then
+        if [ -n "$starved_last_date" ]; then
+            starved_ends=$(git -C "$TRELLIS" log --since="$starved_last_date" --oneline --grep='^Memory sync' 2>/dev/null | grep -c . || true)
+        else
+            starved_ends=$(git -C "$TRELLIS" log --oneline --grep='^Memory sync' 2>/dev/null | grep -c . || true)
+        fi
+    fi
     if [ "$oneliner" = "--oneliner" ]; then
-        echo "  acs:           -- (need ${acs_min_sessions}+ sessions, have $total_sessions)"
+        echo "  acs:           -- (need ${acs_min_sessions}+ sessions, have $total_sessions; session ends since the last row with no row: $starved_ends)"
     else
         echo "ACS: insufficient data (need $acs_min_sessions+ sessions, have $total_sessions)"
+        if [ -n "$starved_last_id" ]; then
+            echo "  last row: $starved_last_id $starved_last_date.  Session ends since then with no row: $starved_ends"
+        else
+            echo "  last row: none.  Session ends with no row: $starved_ends"
+        fi
+        echo "  (each is a \"Memory sync:\" commit after that date — a session that ended without scripts/record-session.sh)"
+        echo "  Fix: the Session End directive step 6 runs scripts/record-session.sh — check it is happening."
     fi
     exit 0
 fi

@@ -32,10 +32,11 @@ mk_install() {
     local dir="$1" db_enabled="${2:-true}"
 
     mkdir -p "$dir/memory" "$dir/scripts/db" "$dir/scripts/lib"
-    cp "$FIXTURE_TEMPLATE/rebuild-db.sh"      "$dir/scripts/"
+    cp "$FIXTURE_TEMPLATE/rebuild-trellis-db.sh"      "$dir/scripts/"
     cp "$FIXTURE_TEMPLATE/ingest-memories.sh" "$dir/scripts/"
     cp "$FIXTURE_TEMPLATE/lib/config.sh"      "$dir/scripts/lib/"
     cp "$FIXTURE_TEMPLATE/lib/health-seed.sh" "$dir/scripts/lib/"
+    cp "$FIXTURE_TEMPLATE/lib/memory-files.sh" "$dir/scripts/lib/"
     cp "$FIXTURE_TEMPLATE/db/schema.sql"      "$dir/scripts/db/"
     cp "$FIXTURE_TEMPLATE/db/views.sql"       "$dir/scripts/db/"
     chmod +x "$dir/scripts/"*.sh
@@ -56,13 +57,13 @@ mk_install() {
     printf '# Corrections\n' > "$dir/memory/corrections.md"
 }
 
-# tr_rebuild DIR [args...] — run the install's rebuild-db.sh, echo its output.
+# tr_rebuild DIR [args...] — run the install's rebuild-trellis-db.sh, echo its output.
 # stderr is folded in so a failure is visible in the same string the assertions
 # read; the exit status is preserved.
 tr_rebuild() {
     local dir="$1"
     shift
-    TRELLIS_HOME="$dir" bash "$dir/scripts/rebuild-db.sh" "$@" 2>&1
+    TRELLIS_HOME="$dir" bash "$dir/scripts/rebuild-trellis-db.sh" "$@" 2>&1
 }
 
 # fixture_db DIR — path to the install's database.
@@ -102,4 +103,27 @@ seed_snapshot() {
         . "$dir/scripts/lib/health-seed.sh"
         append_health_seed "$session" "$date" "$pressure" 0.90 1.00 0.10 "fixture"
     ) 2>&1
+}
+
+# mk_memory DIR NAME TYPE [DESC] — one typed memory file, memory/NAME.md, in
+# the template's frontmatter shape (type: nested under metadata:).
+mk_memory() {
+    local dir="$1" name="$2" type="$3" desc="${4:-About $2}"
+    printf -- '---\nname: %s\ndescription: %s\nmetadata:\n  type: %s\n---\n\nBody about %s. **Why:** because. **How to apply:** do.\n' \
+        "$name" "$desc" "$type" "$name" > "$dir/memory/$name.md"
+}
+
+# fts5_available — exit 0 if the sqlite3 on PATH can create an FTS5 table.
+# The memory search layer is FTS5; a test that needs the database needs this.
+fts5_available() {
+    command -v sqlite3 >/dev/null 2>&1 || return 1
+    sqlite3 :memory: "CREATE VIRTUAL TABLE _p USING fts5(x);" >/dev/null 2>&1
+}
+
+# memory_count DIR — rows across the four legacy memory names, or 0 with no
+# database. (feedback + projects + "references" + user_profile.)
+memory_count() {
+    local db="$1/trellis.db"
+    [ -f "$db" ] || { printf '0\n'; return 0; }
+    sqlite3 "$db" "SELECT (SELECT COUNT(*) FROM feedback) + (SELECT COUNT(*) FROM projects) + (SELECT COUNT(*) FROM \"references\") + (SELECT COUNT(*) FROM user_profile);" 2>/dev/null || printf '0\n'
 }

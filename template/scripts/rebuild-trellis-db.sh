@@ -26,6 +26,30 @@ DB_BAK="${DB}.bak"
 DB_DIR="${SCRIPT_DIR}/db"
 DB_CHECKSUM="${TRELLIS}/.db-memory-checksum"
 
+# --- The database this script builds is a SEARCH layer -------------------
+# >>> CHECK-F5
+# memory_fts is an FTS5 virtual table and scripts/recall.sh queries it. A
+# sqlite3 built without FTS5 would fail the schema load with an error about
+# an unknown module — or, worse, a hand-edited schema would build a database
+# that "works except search". Name the condition and the fix, and stop.
+if [ "${TRELLIS_DB_CHECK:-on}" != "off" ] \
+   && ! sqlite3 :memory: "CREATE VIRTUAL TABLE _p USING fts5(x);" >/dev/null 2>&1; then
+    echo "rebuild-trellis-db: REFUSED — this sqlite3 ($(sqlite3 --version 2>/dev/null | awk '{print $1}')) has no FTS5." >&2
+    echo "  The memory search layer (memory_fts, scripts/recall.sh) needs it." >&2
+    echo "  Fix: macOS — brew install sqlite && put it first on PATH; Linux — install a sqlite3 with FTS5." >&2
+    echo "  Or set database.enabled: false in config.yaml to run flat-file only." >&2
+    exit 2
+fi
+# <<< CHECK-F5
+
+# lib/memory-files.sh — the one definition of "a typed memory file".
+if [ -f "${SCRIPT_DIR}/lib/memory-files.sh" ]; then
+    . "${SCRIPT_DIR}/lib/memory-files.sh"
+else
+    echo "rebuild-trellis-db: missing ${SCRIPT_DIR}/lib/memory-files.sh — reinstall scripts/ from the template" >&2
+    exit 1
+fi
+
 # --- Portable SHA-256 (macOS ships shasum; most Linux ships both) ---
 hash_sha256() {
     if command -v shasum >/dev/null 2>&1; then
@@ -59,7 +83,7 @@ compute_memory_checksum() {
 compute_pipeline_checksum() {
     local f
     for f in "${DB_DIR}/schema.sql" "${DB_DIR}/views.sql" \
-             "${SCRIPT_DIR}/ingest-memories.sh" "${SCRIPT_DIR}/rebuild-db.sh"; do
+             "${SCRIPT_DIR}/ingest-memories.sh" "${SCRIPT_DIR}/rebuild-trellis-db.sh"; do
         [ -f "$f" ] || continue
         hash_sha256 "$f" 2>/dev/null | awk '{print $1}'
     done | sort | hash_sha256 | awk '{print $1}'
@@ -92,11 +116,16 @@ if [ "${1:-}" = "--if-stale" ]; then
 fi
 
 cleanup() { rm -f "$DB_NEW" "${DB_NEW}-shm" "${DB_NEW}-wal"; }
+# restore_backup [EXIT_CODE] — discard the new database, put the previous one
+# back, exit. 1 = verification failed (default); 3 = a check REFUSED the
+# build because the database would be wrong. Either way the previous DB is
+# what stays on disk.
 restore_backup() {
-    echo "ERROR: Verification failed. Restoring backup..." >&2
-    rm -f "$DB_NEW"
+    local code="${1:-1}"
+    echo "rebuild-trellis-db: not swapping; previous database restored." >&2
+    rm -f "$DB_NEW" "${DB_NEW}-shm" "${DB_NEW}-wal"
     [ -f "$DB_BAK" ] && mv "$DB_BAK" "$DB"
-    exit 1
+    exit "$code"
 }
 
 # Step 1: Back up existing DB
@@ -104,8 +133,10 @@ restore_backup() {
 
 # Step 2: Build schema
 trap cleanup EXIT
-sqlite3 "$DB_NEW" < "${DB_DIR}/schema.sql"
-sqlite3 "$DB_NEW" < "${DB_DIR}/views.sql"
+# stdout silenced: `PRAGMA journal_mode = WAL` answers "wal", which is not a
+# report line. Errors still reach stderr and abort under set -e.
+sqlite3 "$DB_NEW" < "${DB_DIR}/schema.sql" >/dev/null
+sqlite3 "$DB_NEW" < "${DB_DIR}/views.sql" >/dev/null
 
 #-----------------------------------------------------------------------------
 # SNAPSHOT FRESHNESS GATE.
@@ -121,7 +152,7 @@ sqlite3 "$DB_NEW" < "${DB_DIR}/views.sql"
 _TR_INGEST="${SCRIPT_DIR}/ingest-memories.sh"
 
 # run_ingest LABEL COMMAND... — run one ingest pass and SHOW WHAT IT SAID.
-# These calls used to end in `>/dev/null 2>&1 || true`, which threw away
+# These calls used to send both streams to /dev/null and `|| true`, throwing away
 # ingest's own "SKIP: <file> — no type" and "PII WARNING" lines. A memory file
 # skipped for a malformed frontmatter block was therefore absent from the
 # database while both the file and the rebuild looked perfectly healthy.
@@ -134,34 +165,30 @@ run_ingest() {
     out=$("$@" 2>&1) || rc=$?
     if [ -n "$out" ]; then
         printf '%s\n' "$out" | while IFS= read -r _line; do
-            printf 'rebuild-db: ingest[%s]: %s\n' "$label" "$_line"
+            printf 'rebuild-trellis-db: ingest[%s]: %s\n' "$label" "$_line"
         done
     fi
     if [ "$rc" -ne 0 ]; then
-        echo "rebuild-db: ingest[$label] exited $rc — the $label snapshot was NOT regenerated" >&2
+        echo "rebuild-trellis-db: ingest[$label] exited $rc — the $label snapshot was NOT regenerated" >&2
     fi
     return 0
 }
 
+# REGENERATE ON EVERY REBUILD. The previous gate compared mtimes of the
+# memory files against db/data-*.sql — and only fired if a seed already
+# existed. On an install that had never generated one, nothing was generated,
+# nothing was loaded, and "Rebuild complete" printed over an empty database.
+# A rebuild is by definition the moment the seeds should reflect the files.
 if [ -x "$_TR_INGEST" ]; then
-    _TR_STALE=0
-    for _m in "$TRELLIS"/memory/*.md; do
-        [ -f "$_m" ] || continue
-        for _d in "${SCRIPT_DIR}"/db/data-*.sql; do
-            [ -f "$_d" ] || continue
-            [ "$_m" -nt "$_d" ] && { _TR_STALE=1; break 2; }
-        done
-    done
-    if [ "$_TR_STALE" -eq 1 ]; then
-        echo "rebuild-db: memory is newer than the data snapshot. Regenerating from markdown."
-        # NOTE: regenerate ONLY where markdown is the superset. If rows exist
-        # only in SQL, extract them to markdown FIRST — or this DELETES them.
-        run_ingest feedback   "$_TR_INGEST" --type feedback  --glob "memory/feedback-*.md"  --output scripts/db/data-feedback.sql
-        run_ingest projects   "$_TR_INGEST" --type project   --glob "memory/project-*.md"   --output scripts/db/data-projects.sql
-        run_ingest references "$_TR_INGEST" --type reference --glob "memory/reference-*.md" --output scripts/db/data-references.sql
-        run_ingest user       "$_TR_INGEST" --type user      --glob "memory/user-*.md"      --output scripts/db/data-user.sql
-        echo "rebuild-db: snapshot regenerated from markdown."
-    fi
+    echo "rebuild-trellis-db: regenerating the memory seeds from markdown."
+    # NOTE: regenerate ONLY where markdown is the superset. If rows exist
+    # only in SQL, extract them to markdown FIRST — or this DELETES them.
+    run_ingest feedback   "$_TR_INGEST" --type feedback  --glob "memory/feedback-*.md"  --output scripts/db/data-feedback.sql
+    run_ingest projects   "$_TR_INGEST" --type project   --glob "memory/project-*.md"   --output scripts/db/data-projects.sql
+    run_ingest references "$_TR_INGEST" --type reference --glob "memory/reference-*.md" --output scripts/db/data-references.sql
+    run_ingest user       "$_TR_INGEST" --type user      --glob "memory/user-*.md"      --output scripts/db/data-user.sql
+else
+    echo "rebuild-trellis-db: ${_TR_INGEST} is not executable — no memory seed regenerated" >&2
 fi
 
 # Step 3: Load data (if data scripts exist)
@@ -176,11 +203,33 @@ for f in "${SCRIPT_DIR}"/db/data-*.sql; do
     _TR_SEEDS=$((_TR_SEEDS + 1))
 done
 if [ "$_TR_SEEDS" -eq 0 ]; then
-    echo "rebuild-db: no db/data-*.sql seeds found — building from schema only (tables that have no markdown source will be EMPTY)"
+    echo "rebuild-trellis-db: no db/data-*.sql seeds found — building from schema only (tables that have no markdown source will be EMPTY)"
 else
     _TR_HEALTH=$(sqlite3 "$DB_NEW" "SELECT COUNT(*) FROM health_snapshots;" 2>/dev/null || echo 0)
-    echo "rebuild-db: loaded ${_TR_SEEDS} seed file(s); health history: ${_TR_HEALTH} snapshot(s)"
+    echo "rebuild-trellis-db: loaded ${_TR_SEEDS} seed file(s); health history: ${_TR_HEALTH} snapshot(s)"
 fi
+
+# How many rows the database OWES: the typed memory files on disk.
+_TR_TYPED=$(count_typed_memories "$TRELLIS")
+
+# >>> CHECK-L2
+# A database that holds nothing reports "integrity OK". If typed memory files
+# exist on disk and no row was loaded, the pipeline is broken, and shipping
+# the empty database would make every DB-backed retrieval report "not in
+# memory" while the files sit there. Refuse; keep the previous database.
+if [ "${TRELLIS_DB_CHECK:-on}" != "off" ]; then
+    _TR_ROWS=$(sqlite3 "$DB_NEW" "SELECT (SELECT COUNT(*) FROM feedback) + (SELECT COUNT(*) FROM projects) + (SELECT COUNT(*) FROM \"references\") + (SELECT COUNT(*) FROM user_profile);" 2>/dev/null || echo 0)
+    if [ "$_TR_TYPED" -gt 0 ] && [ "$_TR_ROWS" -eq 0 ]; then
+        echo "rebuild-trellis-db: REFUSED — ${_TR_TYPED} typed memory file(s) on disk, 0 rows loaded." >&2
+        echo "  A database that holds nothing would report \"integrity OK\". Not swapping; previous DB restored." >&2
+        echo "  Check: scripts/ingest-memories.sh --check-untagged   Override once: TRELLIS_DB_CHECK=off" >&2
+        restore_backup 3
+    fi
+fi
+if [ "$_TR_TYPED" -eq 0 ]; then
+    echo "rebuild-trellis-db: no typed memory files yet (new install) — database built empty, nothing to load"
+fi
+# <<< CHECK-L2
 
 # Step 4: Populate FTS5
 sqlite3 "$DB_NEW" <<'FTS'
@@ -252,25 +301,25 @@ REINFORCE
 # Step 6: Verify
 integrity=$(sqlite3 "$DB_NEW" "PRAGMA integrity_check;")
 if [ "$integrity" != "ok" ]; then
-    echo "PRAGMA integrity_check FAILED: $integrity" >&2
-    restore_backup
+    echo "rebuild-trellis-db: PRAGMA integrity_check FAILED: $integrity" >&2
+    restore_backup 1
 fi
 
 fk_check=$(sqlite3 "$DB_NEW" "PRAGMA foreign_keys = ON; PRAGMA foreign_key_check;" 2>&1)
 if [ -n "$fk_check" ]; then
-    echo "PRAGMA foreign_key_check FAILED: $fk_check" >&2
-    restore_backup
+    echo "rebuild-trellis-db: PRAGMA foreign_key_check FAILED: $fk_check" >&2
+    restore_backup 1
 fi
 
 table_count=$(sqlite3 "$DB_NEW" "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'memory_fts%';")
 if [ "$table_count" -lt 15 ]; then
-    echo "Table count check FAILED: expected >=15, got $table_count" >&2
-    restore_backup
+    echo "rebuild-trellis-db: table count check FAILED: expected >=15, got $table_count" >&2
+    restore_backup 1
 fi
 
 # Step 7: Checkpoint WAL and clean sidecars before atomic swap
-sqlite3 "$DB_NEW" "PRAGMA wal_checkpoint(TRUNCATE);" 2>/dev/null || true
-sqlite3 "$DB_NEW" "PRAGMA journal_mode=DELETE;" 2>/dev/null || true
+sqlite3 "$DB_NEW" "PRAGMA wal_checkpoint(TRUNCATE);" >/dev/null
+sqlite3 "$DB_NEW" "PRAGMA journal_mode=DELETE;" >/dev/null
 rm -f "${DB_NEW}-shm" "${DB_NEW}-wal"
 
 trap - EXIT

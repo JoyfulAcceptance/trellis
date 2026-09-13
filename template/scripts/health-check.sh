@@ -280,22 +280,49 @@ drift="0.00"
 echo "  drift:         $drift  [OK]"
 
 # SQLite acceleration layer (auto-rebuild if stale)
+#
+# The rebuild's stderr is SHOWN and its exit is KEPT. The previous call site
+# ended in `2>/dev/null || true`, which is how a rebuild that refused — or
+# crashed — reported as a healthy database one line later.
 db_enabled=$(get_config "database.enabled" "true")
 db_path="$TRELLIS/$(get_config "database.path" "trellis.db")"
+rebuild_rc=0
 if [ "$db_enabled" = "true" ] && [ -x "$TRELLIS/scripts/rebuild-trellis-db.sh" ]; then
-    bash "$TRELLIS/scripts/rebuild-trellis-db.sh" --if-stale 2>/dev/null || true
+    bash "$TRELLIS/scripts/rebuild-trellis-db.sh" --if-stale || rebuild_rc=$?
+fi
+# The count of typed memory files — the number of rows the database OWES.
+typed_files=0
+if [ -f "$SCRIPT_DIR/lib/memory-files.sh" ]; then
+    . "$SCRIPT_DIR/lib/memory-files.sh"
+    typed_files=$(count_typed_memories "$TRELLIS")
 fi
 if [ "$db_enabled" = "true" ]; then
+    if [ "$rebuild_rc" -ne 0 ]; then
+        echo "  sqlite:        rebuild refused/failed (exit $rebuild_rc) — see the lines above  [WARN]"
+        do_next "Read the refusal above and fix its cause; then run scripts/rebuild-trellis-db.sh."
+        warnings=$((warnings + 1))
+    fi
     if [ -f "$db_path" ] && command -v sqlite3 &>/dev/null; then
         table_count=$(sqlite3 "$db_path" "SELECT count(*) FROM sqlite_master WHERE type='table';" 2>/dev/null || echo 0)
         integrity=$(sqlite3 "$db_path" "PRAGMA integrity_check;" 2>/dev/null || echo "FAIL")
-        if [ "$integrity" = "ok" ] && [ "$table_count" -ge 15 ]; then
-            echo "  sqlite:        ON ($table_count tables, integrity OK)  [OK]"
-            checks_ok=$((checks_ok + 1))
-        else
+        # Rows the database actually holds. Layer 4 of the old check asked
+        # "tables >= 15 and integrity ok" — true of an empty database.
+        content_rows=$(sqlite3 "$db_path" "SELECT (SELECT COUNT(*) FROM feedback) + (SELECT COUNT(*) FROM projects) + (SELECT COUNT(*) FROM \"references\") + (SELECT COUNT(*) FROM user_profile);" 2>/dev/null || echo "?")
+        if [ "$integrity" != "ok" ] || [ "$table_count" -lt 15 ]; then
             echo "  sqlite:        ON ($table_count tables, integrity: $integrity)  [WARN]"
             do_next "Run scripts/rebuild-trellis-db.sh to rebuild the DB from flat files (flat files are the source of truth)."
             warnings=$((warnings + 1))
+        elif [ "$content_rows" = "?" ]; then
+            echo "  sqlite:        ON ($table_count tables, content rows unreadable)  [WARN]"
+            do_next "Run scripts/rebuild-trellis-db.sh — the database schema does not answer the row count."
+            warnings=$((warnings + 1))
+        elif [ "$typed_files" -gt 0 ] && [ "$content_rows" -eq 0 ]; then
+            echo "  sqlite:        ON ($table_count tables, $content_rows content rows / $typed_files typed files, integrity OK)  [WARN]"
+            do_next "Run scripts/rebuild-trellis-db.sh and read what it says — the database holds none of your $typed_files memories."
+            warnings=$((warnings + 1))
+        else
+            echo "  sqlite:        ON ($table_count tables, $content_rows content rows / $typed_files typed files, integrity OK)  [OK]"
+            checks_ok=$((checks_ok + 1))
         fi
     elif [ ! -f "$db_path" ]; then
         echo "  sqlite:        ON (not built yet — run rebuild-trellis-db.sh)  [WARN]"

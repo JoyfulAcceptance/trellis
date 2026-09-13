@@ -31,6 +31,14 @@ jobs:
       - name: Install test dependencies
         run: python3 -m pip install -r requirements-test.txt
 
+      # Evidence, not an assertion: which bash and sqlite3 the runner has,
+      # and whether that sqlite3 carries FTS5 (the memory search layer).
+      - name: Report tool versions
+        run: |
+          bash --version | head -1
+          sqlite3 --version
+          sqlite3 :memory: "create virtual table t using fts5(x);" && echo "fts5: yes" || echo "fts5: NO"
+
       - name: Run test suite
         run: bash tests/run-all.sh
 

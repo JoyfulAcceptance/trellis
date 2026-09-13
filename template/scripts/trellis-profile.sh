@@ -296,8 +296,13 @@ SYSDEFAULTS
     fi
 
     # Auto-rebuild DB if memory files changed (self-healing staleness detection)
+    # Output shown, exit reported: a refused rebuild is not a healthy profile.
     if [ -x "$TRELLIS/scripts/rebuild-trellis-db.sh" ]; then
-        bash "$TRELLIS/scripts/rebuild-trellis-db.sh" --if-stale 2>/dev/null || true
+        local rebuild_rc=0
+        bash "$TRELLIS/scripts/rebuild-trellis-db.sh" --if-stale || rebuild_rc=$?
+        if [ "$rebuild_rc" -ne 0 ]; then
+            echo "trellis-profile: rebuild-trellis-db.sh exited $rebuild_rc — read its output above" >&2
+        fi
     fi
 
     # Commit if git available. A profile switch legitimately removes top-level

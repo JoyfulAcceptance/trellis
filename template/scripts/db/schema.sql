@@ -267,7 +267,8 @@ CREATE TABLE memory_confidence(
     pinned INTEGER NOT NULL DEFAULT 0,
     decay_rate REAL GENERATED ALWAYS AS (
         CASE WHEN half_life_days IS NULL THEN 0.0
-             ELSE ln(2) / half_life_days
+             -- ln(2) as a literal — math functions are optional in sqlite3 builds
+             ELSE 0.6931471805599453 / half_life_days
         END
     ) STORED,
     last_accessed TEXT,

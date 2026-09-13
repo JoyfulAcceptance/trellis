@@ -8,25 +8,25 @@
 #
 # WHY THIS FILE EXISTS
 # --------------------
-# scripts/db/ ships schema.sql and views.sql and nothing else. rebuild-db.sh
+# scripts/db/ ships schema.sql and views.sql and nothing else. rebuild-trellis-db.sh
 # builds a NEW database from those two files, loads db/data-*.sql over it, and
 # mv's the result on top of the live database. health_snapshots has no seed, no
 # markdown source and no preservation step, so a rebuild does not merely "lose"
 # health history — it structurally cannot carry it. Measured on a scratch
 # install:
 #
-#     write a snapshot, then rebuild-db.sh:   1 row -> 0 rows
+#     write a snapshot, then rebuild-trellis-db.sh:   1 row -> 0 rows
 #     write a snapshot, then health-check.sh: 1 row -> 0 rows
 #
 # The second line is the one that matters. health-check.sh calls
-# rebuild-db.sh --if-stale unattended at session start, so the history was
+# rebuild-trellis-db.sh --if-stale unattended at session start, so the history was
 # being erased by the very check that reads it. v_health_shift self-joins
 # health_snapshots to its own previous row; against a table that empties itself
 # every session it can never return a row at all, and a gauge that can never
 # fire looks exactly like a gauge that has nothing to report.
 #
 # The fix is to give the table a seed, like every other table has. A snapshot
-# is appended here as SQL, and rebuild-db.sh's existing db/data-*.sql glob
+# is appended here as SQL, and rebuild-trellis-db.sh's existing db/data-*.sql glob
 # reloads it. History then survives a rebuild by the same mechanism that makes
 # feedback and projects survive one.
 #
@@ -71,7 +71,7 @@ _health_seed_home() {
     fi
 }
 
-# health_seed_path — the file rebuild-db.sh's data-*.sql glob picks up.
+# health_seed_path — the file rebuild-trellis-db.sh's data-*.sql glob picks up.
 health_seed_path() {
     printf '%s\n' "$(_health_seed_home)/scripts/db/data-health.sql"
 }
@@ -148,7 +148,7 @@ append_health_seed() {
     if [ ! -f "$seed" ]; then
         {
             echo "-- data-health.sql — health snapshot history."
-            echo "-- Written by scripts/lib/health-seed.sh, reloaded by rebuild-db.sh."
+            echo "-- Written by scripts/lib/health-seed.sh, reloaded by rebuild-trellis-db.sh."
             echo "--"
             echo "-- health_snapshots has no markdown source, so this file IS the history."
             echo "-- Without it every rebuild starts the table empty and v_health_shift,"

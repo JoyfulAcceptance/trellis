@@ -4,12 +4,13 @@
 #
 #     scripts/post-update.sh [--from OLD_VERSION]
 #
-# Three steps, then NEXT STEPS:
-#   1/3  rebuild the memory database on the current schema (a full rebuild,
+# Four steps, then NEXT STEPS:
+#   1/4  rebuild the memory database on the current schema (a full rebuild,
 #        not --if-stale: the schema may have changed under the same files)
-#   2/3  count typed memory files against database rows — the one-line answer
+#   2/4  count typed memory files against database rows — the one-line answer
 #        to "did all my memories reach the database"
-#   3/3  the governance log (acs-check.sh), including WHY it is starved if it is
+#   3/4  the memory audit — every stranded memory file, by name, with its fix
+#   4/4  the governance log (acs-check.sh), including WHY it is starved if it is
 #
 # Idempotent: a second run repeats the same output and changes nothing but
 # the rebuild stamp. Exit 0 always — the findings are in the text; a refusing
@@ -59,8 +60,8 @@ echo "Trellis ${version} — post-update steps"
 echo "======================================"
 echo ""
 
-# --- 1/3 rebuild -----------------------------------------------------------
-echo "1/3 rebuilding the memory database on the current schema"
+# --- 1/4 rebuild -----------------------------------------------------------
+echo "1/4 rebuilding the memory database on the current schema"
 rebuild_rc=0
 if [ "$db_enabled" != "true" ]; then
     echo "    database.enabled is false — skipped (flat-file mode)"
@@ -76,8 +77,8 @@ else
 fi
 echo ""
 
-# --- 2/3 files vs rows -------------------------------------------------------
-echo "2/3 memory files vs database rows"
+# --- 2/4 files vs rows -------------------------------------------------------
+echo "2/4 memory files vs database rows"
 typed=0
 untyped=0
 if [ -f "$SCRIPT_DIR/lib/memory-files.sh" ]; then
@@ -102,8 +103,20 @@ if [ "$untyped" -gt 0 ]; then
 fi
 echo ""
 
-# --- 3/3 governance log ------------------------------------------------------
-echo "3/3 governance log"
+# --- 3/4 memory audit --------------------------------------------------------
+# Names what 2/4 only counts: every memory file that is stranded (unindexed,
+# untyped, late frontmatter, index rows with no file, typed with no row) and
+# the fix for each. Read-only. Its exit code is a finding, not a failure.
+echo "3/4 memory audit — stranded files, by name"
+if [ -x "$TRELLIS/scripts/memory-audit.sh" ]; then
+    bash "$TRELLIS/scripts/memory-audit.sh" 2>&1 | sed 's/^/    /' || true
+else
+    echo "    scripts/memory-audit.sh is missing or not executable — reinstall scripts/ from the template"
+fi
+echo ""
+
+# --- 4/4 governance log ------------------------------------------------------
+echo "4/4 governance log"
 if [ -x "$TRELLIS/scripts/acs-check.sh" ]; then
     bash "$TRELLIS/scripts/acs-check.sh" 2>&1 | sed 's/^/    /'
 else
@@ -114,13 +127,17 @@ echo ""
 # --- next steps ----------------------------------------------------------------
 cat <<'STEPS'
 NEXT STEPS — for the AI reading this:
-1. Re-read directives.md now. Two steps changed: Session Start 8b (run scripts/recall.sh before
-   answering from memory) and Session End 6 (run scripts/record-session.sh).
+1. Re-read directives.md now. The steps that changed since 0.5.x: Session Start 8b (run
+   scripts/recall.sh before answering from memory), Session Start 6 (run scripts/memory-audit.sh
+   when fragmentation is HIGH) and Session End 6 (run scripts/record-session.sh).
 2. Prove recall works: scripts/recall.sh <a distinctive word from any memory you know>
    — expect a line with a memory/ path. If it prints "no database" or "out of date", run
    scripts/rebuild-trellis-db.sh and read what it says.
-3. At the end of this session, run scripts/record-session.sh, then scripts/memory-sync.sh.
-4. Tell the user, in one line, whether all their memory files reached the database (2/3 above).
+3. If 3/4 above named stranded files, repair them as its own NEXT STEPS say — the file, the
+   class, the fix — then run scripts/rebuild-trellis-db.sh. Touch no memory file it did not name.
+4. At the end of this session, run scripts/record-session.sh, then scripts/memory-sync.sh.
+5. Tell the user, in one line, whether all their memory files reached the database (2/4 above)
+   and how many files the audit named (3/4 above).
 
 FEEDBACK (optional):
 If you have a minute, we would like to hear how this release behaved on your install. Run

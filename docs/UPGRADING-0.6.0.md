@@ -100,20 +100,26 @@ That line is the handoff. Do what it says.
 bash ~/.trellis/scripts/post-update.sh --from 0.5.1
 ```
 
-It rebuilds the memory database on the new schema (a full rebuild — the schema
-changed under the same files), counts typed memory files against database rows,
-prints the governance-log status with a reason if it is starved, and ends with
-the steps below. They are repeated here in case the output scrolled away:
+It rebuilds the memory database on the new schema (1/4 — a full rebuild; the
+schema changed under the same files), counts typed memory files against
+database rows (2/4), runs the stranded-file audit (3/4 — every memory file the
+index or the database cannot see, by name, with its fix), prints the
+governance-log status with a reason if it is starved (4/4), and ends with the
+steps below. They are repeated here in case the output scrolled away:
 
 ```
 NEXT STEPS — for the AI reading this:
-1. Re-read directives.md now. Two steps changed: Session Start 8b (run scripts/recall.sh before
-   answering from memory) and Session End 6 (run scripts/record-session.sh).
+1. Re-read directives.md now. The steps that changed since 0.5.x: Session Start 8b (run
+   scripts/recall.sh before answering from memory), Session Start 6 (run scripts/memory-audit.sh
+   when fragmentation is HIGH) and Session End 6 (run scripts/record-session.sh).
 2. Prove recall works: scripts/recall.sh <a distinctive word from any memory you know>
    — expect a line with a memory/ path. If it prints "no database" or "out of date", run
    scripts/rebuild-trellis-db.sh and read what it says.
-3. At the end of this session, run scripts/record-session.sh, then scripts/memory-sync.sh.
-4. Tell the user, in one line, whether all their memory files reached the database (2/3 above).
+3. If 3/4 above named stranded files, repair them as its own NEXT STEPS say — the file, the
+   class, the fix — then run scripts/rebuild-trellis-db.sh. Touch no memory file it did not name.
+4. At the end of this session, run scripts/record-session.sh, then scripts/memory-sync.sh.
+5. Tell the user, in one line, whether all their memory files reached the database (2/4 above)
+   and how many files the audit named (3/4 above).
 ```
 
 If you did not run the updater by hand (the user said "check for updates and

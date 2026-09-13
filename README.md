@@ -149,6 +149,7 @@ database holds fewer rows than there are memory files.
 |   +-- recall.sh              Memory search (type, path, description)
 |   +-- record-session.sh      Session-log row from .session-events
 |   +-- post-update.sh         Post-update rebuild, check, next steps
+|   +-- memory-audit.sh        Names every stranded memory file and its fix
 |   +-- rebuild-trellis-db.sh  SQLite rebuild (optional)
 |   +-- ingest-memories.sh     Memory file ingestion (optional)
 |   +-- db/                    Schema and views (optional)

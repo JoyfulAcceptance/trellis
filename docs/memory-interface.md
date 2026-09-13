@@ -27,6 +27,7 @@ What the memory system provides to the rest of Trellis.
 | Health metrics | `scripts/health-check.sh` | Returns: pressure, fragmentation, volatility, drift |
 | DB rebuild | `scripts/rebuild-trellis-db.sh` | Atomic swap; runs the ingest itself; refuses (exit 3) rather than swap in a database that holds fewer rows than there are typed memory files |
 | Ingest .md → SQL | `scripts/ingest-memories.sh` | Bare call = every typed memory file → one `memory_item` row; `--check-untagged` for hygiene scan |
+| Stranded-file audit | `scripts/memory-audit.sh` | Names every memory file not in MEMORY.md, without `type:`, with a late frontmatter fence, File Map rows with no file, typed files with no row; dangling `[[links]]` and CRLF as warn/info. Read-only; exit 1 when something is stranded; `--quiet` for the summary line |
 | Memory registry | `SELECT name, type, description, path FROM memories` | Every memory with an openable path (relative to `memory/`) |
 | Full-text search | `SELECT ... FROM memory_fts WHERE memory_fts MATCH ?` | FTS5, porter tokenizer; columns `source_table, source_id, title, content, path` — join `v_memory_addr` on `(source_table, source_id)` for the address |
 | Ranked search | `SELECT ... FROM v_fts_confidence WHERE memory_fts MATCH ?` | Text × confidence × recency |

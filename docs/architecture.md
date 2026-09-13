@@ -88,6 +88,7 @@ verbatim into each script (no external sourcing — each script is self-containe
 |   +-- recall.sh              memory search: type, path, description per hit
 |   +-- record-session.sh      .session-events -> one session-log row
 |   +-- post-update.sh         after an update: rebuild, files vs rows, next steps
+|   +-- memory-audit.sh        every stranded memory file, by name, with its fix (read-only)
 |   +-- rebuild-trellis-db.sh  SQLite DB rebuild (optional; runs the ingest, refuses a short database)
 |   +-- ingest-memories.sh     .md -> SQL parser: every typed memory file -> one memory_item row
 |   +-- db/

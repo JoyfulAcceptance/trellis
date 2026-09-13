@@ -21,7 +21,7 @@ You have a persistent memory directory at `memory/`. Its contents persist across
 3b. **Proprioceptive check:** If `scripts/proprioceptive-check.sh` exists, run it. Read the ADJUSTMENTS section. Execute up to 2 mechanical adjustments silently. Each adjustment has a `[set_point:X, prov:Y]` tag -- use these when logging the action in the session-log entry. Source follows the set-point provenance (`human` in v1). If the script fails, proceed normally but note `proprioception-skipped(e)` in the session log.
 4. If `memory/training-primer.md` exists and sessions < 10: read it, follow its Session Procedure (one question per session)
 5. If MEMORY.md is near the line cap: read `memory/protocol.md` Section 3, compress
-6. Check health metrics; if anomalies, investigate
+6. Check health metrics; if anomalies, investigate. If fragmentation is [HIGH], run `scripts/memory-audit.sh` — it names every stranded memory file and the fix for each — and repair what it names, then run `scripts/rebuild-trellis-db.sh`.
 7. After 5+ sessions: run `scripts/health-check.sh` every ~5 sessions
 8. **Memory database:** If `database.enabled` is true, run `scripts/rebuild-trellis-db.sh --if-stale`. It ingests every memory file itself and prints what it loaded. If it REFUSES (non-zero exit), tell the user what it said — do not proceed as if the database were fine.
 8b. **Recall before you guess:** When the user asks about something that may already be in memory — a person, a project, a rule, a decision, a past session — run `scripts/recall.sh <two or three distinctive words>` first. It prints type, path and a one-line description for each hit; open the path to read the memory. Do not search `memory/` with grep — the search already returns addresses you can open.
@@ -65,7 +65,7 @@ On first session with a new profile, mention once that saying "shutdown" or "don
 
 Triggers:
 - MEMORY.md approaching line cap -> compress (archive oldest ROUTINE session)
-- File references broken -> fix immediately
+- File references broken -> fix immediately (`scripts/memory-audit.sh` names them)
 - Health metrics above threshold -> run protocol.md procedures
 - Idle time -> opportunistic maintenance (max 2 per session)
 

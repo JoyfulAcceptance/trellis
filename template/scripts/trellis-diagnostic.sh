@@ -69,6 +69,18 @@ if [ -f "$SCRIPT_DIR/lib/memory-files.sh" ]; then
     fi
     echo "Memory database: $db_rows memories / $db_typed typed files ($db_untyped without type:)"
 fi
+# The stranded-file audit — its one-line summary (counts only; the names stay
+# local). Its exit 1 is a finding, not a failure: this script runs under set -e.
+if [ -x "$TRELLIS/scripts/memory-audit.sh" ]; then
+    audit_line=$(bash "$TRELLIS/scripts/memory-audit.sh" --quiet 2>/dev/null | head -1 | sed 's/^memory-audit: //') || true
+    echo "Memory audit: ${audit_line:-no output}"
+    case "$audit_line" in
+        "0 stranded"*|"new install"*) ;;
+        *) issues+=("memory-audit.sh named stranded memory files — run it locally for the names") ;;
+    esac
+else
+    echo "Memory audit: script not found"
+fi
 # The recall route is measurable: one line per search, counts only.
 recall_searches=0
 [ -f "$TRELLIS/health/recall.log" ] && \

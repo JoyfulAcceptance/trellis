@@ -31,8 +31,8 @@ $(grep -E '^##' "$ASM")
 EOF
 assert_eq "" "$missing" "every ## heading in directives.md is in directives-base.md" || true
 
-# --- both route to the three scripts ----------------------------------------
-for script in scripts/recall.sh scripts/record-session.sh scripts/post-update.sh; do
+# --- both route to the four scripts -----------------------------------------
+for script in scripts/recall.sh scripts/record-session.sh scripts/post-update.sh scripts/memory-audit.sh; do
     assert_contains "$(cat "$BASE")" "$script" "directives-base.md names $script" || true
     assert_contains "$(cat "$ASM")"  "$script" "directives.md names $script" || true
 done

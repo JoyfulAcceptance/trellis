@@ -21,6 +21,7 @@ cp "$REPO/template/scripts/acs-check.sh" "$FIXTURE/scripts/acs-check.sh"
 # scripts one by one has to copy the reader too.
 mkdir -p "$FIXTURE/scripts/lib"
 cp "$REPO/template/scripts/lib/config.sh" "$FIXTURE/scripts/lib/config.sh"
+cp "$REPO/template/scripts/lib/memory-files.sh" "$FIXTURE/scripts/lib/memory-files.sh"
 chmod +x "$FIXTURE/scripts/"*.sh
 
 write_config() {
@@ -71,6 +72,13 @@ printf '# Orphan\n' > "$FIXTURE/memory/orphan.md"
 health_output=$(TRELLIS_HOME="$FIXTURE" bash "$FIXTURE/scripts/health-check.sh" 2>&1)
 echo "$health_output" | grep -Eq 'fragmentation:[[:space:]]+1?\.00[[:space:]]+\[HIGH\]' || {
     echo "health-check did not warn for an unindexed memory file:" >&2
+    echo "$health_output" >&2
+    exit 1
+}
+# A count with no names is not actionable: the DO-NEXT must name the script
+# that names the files.
+echo "$health_output" | grep -Fq 'scripts/memory-audit.sh' || {
+    echo "health-check did not name memory-audit.sh as the fix for fragmentation:" >&2
     echo "$health_output" >&2
     exit 1
 }

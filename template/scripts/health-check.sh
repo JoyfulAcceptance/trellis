@@ -30,6 +30,11 @@ if [ ! -f "$SCRIPT_DIR/lib/config.sh" ]; then
 fi
 . "$SCRIPT_DIR/lib/config.sh"
 config="$TRELLIS/config.yaml"
+# The one definition of "typed", "protocol file" and "unindexed" — the
+# fragmentation metric below counts by it, and memory-audit.sh names by it.
+if [ -f "$SCRIPT_DIR/lib/memory-files.sh" ]; then
+    . "$SCRIPT_DIR/lib/memory-files.sh"
+fi
 
 memory_index_cap=$(get_config "memory_index_cap" "200")
 pressure_warn=$(get_config "pressure_warn" "0.9")
@@ -222,29 +227,26 @@ else
     echo "  pressure:      $pressure  [OK]"
 fi
 
-# Fragmentation: files not in index + index entries without files
+# Fragmentation: indexable files (everything but the protocol files) that
+# memory/MEMORY.md does not name. ONE definition, in lib/memory-files.sh —
+# memory-audit.sh names the files this metric only counts.
 fragmentation=0
-if [ -f "$TRELLIS/memory/MEMORY.md" ]; then
-    indexed=0
-    for f in "$TRELLIS"/memory/*.md; do
-        [ -f "$f" ] || continue
-        base=$(basename "$f")
-        [ "$base" = "MEMORY.md" ] && continue
-        [ "$base" = "protocol.md" ] && continue
-        [ "$base" = "corrections.md" ] && continue
-        if ! grep -qF "$base" "$TRELLIS/memory/MEMORY.md" 2>/dev/null; then
-            fragmentation=$((fragmentation + 1))
-        fi
-        indexed=$((indexed + 1))
-    done
+indexed=0
+if [ -f "$TRELLIS/memory/MEMORY.md" ] && type list_unindexed_memories >/dev/null 2>&1; then
+    fragmentation=$(count_unindexed_memories "$TRELLIS")
+    indexed=$(count_indexable_memories "$TRELLIS")
 fi
 frag_score="0.00"
 if [ "$indexed" -gt 0 ] 2>/dev/null; then
     frag_score=$(awk -v n="$fragmentation" -v d="$indexed" 'BEGIN { printf "%.2f", n/d }')
 fi
-if [ "$fragmentation" -gt 0 ]; then
+if ! type list_unindexed_memories >/dev/null 2>&1; then
+    echo "  fragmentation: n/a  [WARN]"
+    do_next "scripts/lib/memory-files.sh is missing — re-copy scripts/ from the template (scripts/trellis-update.sh)."
+    warnings=$((warnings + 1))
+elif [ "$fragmentation" -gt 0 ]; then
     echo "  fragmentation: $frag_score  [HIGH]"
-    do_next "Add the unindexed memory files to the file map in memory/MEMORY.md — unindexed memories are unrecallable."
+    do_next "Run scripts/memory-audit.sh — it names the $fragmentation unindexed file(s) and the fix for each."
     warnings=$((warnings + 1))
 else
     echo "  fragmentation: $frag_score  [OK]"

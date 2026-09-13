@@ -10,3 +10,4 @@
 sqlite3 absent: proprioceptive empty-health-view fallback not exercised
 sqlite3 absent: rebuild-trellis-db.sh cannot be exercised
 sqlite3 lacks FTS5: memory-layer tests not exercised
+sqlite3 absent or lacks FTS5: memory-audit section G not exercised

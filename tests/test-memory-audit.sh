@@ -68,6 +68,31 @@ assert_eq "1" "$(printf '%s\n' "$q" | wc -l | tr -d ' ')" "K --quiet prints exac
 assert_eq "$(printf '%s\n' "$out" | head -1)" "$q" "K --quiet prints the summary line" || true
 assert_eq "0" "$qrc" "K --quiet keeps the exit code" || true
 
+# --- P: a frontmatter-less training-primer.md is a protocol file, not B -----
+# The directives read it by name, as they read protocol.md; it is a procedure,
+# never a row. A fresh install that ships it must audit clean.
+FIX="$WORK/primer"
+mk_audit "$FIX" false
+mk_memory "$FIX" feedback-a feedback
+index_row "$FIX" feedback-a
+printf '# Training Primer\n\nOne question per session.\n' > "$FIX/memory/training-primer.md"
+out=$(audit "$FIX"); rc=$?
+assert_eq "0" "$rc" "P a frontmatter-less training-primer.md does not strand (exit 0)" || true
+assert_contains "$out" "(A:0 B:0 C:0 F:0 G:0)" "P nothing is stranded with the primer present" || true
+assert_not_contains "$out" "  B  training-primer.md" "P the primer is not named under B" || true
+assert_not_contains "$out" "  A  training-primer.md" "P the primer is not named under A" || true
+assert_matches "$out" '^  \(expected, not rows: .*training-primer\.md' "P the primer is listed as expected" || true
+
+# --- P2: the shipped blank profile audits clean, as installed ----------------
+FIX="$WORK/blank"
+mkdir -p "$FIX"
+cp -r "$FIXTURE_REPO/template/profiles/blank/." "$FIX/"
+cp -r "$FIXTURE_TEMPLATE" "$FIX/scripts"
+chmod +x "$FIX/scripts/"*.sh
+out=$(audit "$FIX"); rc=$?
+assert_eq "0" "$rc" "P2 a fresh blank-profile install exits 0" || true
+assert_matches "$out" '^memory-audit: 0 stranded ' "P2 a fresh blank-profile install has nothing stranded" || true
+
 # --- A: an unindexed file is named under A -----------------------------------
 FIX="$WORK/a"
 mk_audit "$FIX" false
@@ -88,14 +113,15 @@ index_row "$FIX" feedback-a
 printf -- '---\nname: untyped-b\ndescription: x\n---\n\nBody.\n' > "$FIX/memory/untyped-b.md"
 index_row "$FIX" untyped-b
 touch "$FIX/memory/session-log.md"
+printf '# Training Primer\n\nOne question per session.\n' > "$FIX/memory/training-primer.md"
 out=$(audit "$FIX"); rc=$?
 assert_eq "1" "$rc" "B an untyped file strands (exit 1)" || true
 assert_matches "$out" '^  B  untyped-b\.md' "B the untyped file is named under B" || true
 assert_contains "$out" "B:1" "B the summary counts it" || true
-for p in MEMORY.md corrections.md protocol.md session-log.md; do
+for p in MEMORY.md corrections.md protocol.md session-log.md training-primer.md; do
     assert_not_contains "$out" "  B  $p" "B the protocol file $p is expected, not a finding" || true
 done
-assert_contains "$out" "expected, not rows: MEMORY.md corrections.md protocol.md session-log.md" \
+assert_contains "$out" "expected, not rows: MEMORY.md corrections.md protocol.md session-log.md training-primer.md" \
     "B the protocol files are listed as expected" || true
 
 # --- C: a late frontmatter fence is C, not B; a horizontal rule is B, not C --

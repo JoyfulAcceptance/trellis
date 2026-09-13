@@ -99,7 +99,7 @@ elif [ "$db_enabled" = "true" ]; then
     echo "    every typed memory file is in the database"
 fi
 if [ "$untyped" -gt 0 ]; then
-    echo "    (files without a frontmatter type: are not rows — the rebuild lists them; MEMORY.md, corrections.md, protocol.md and session-log.md are expected there)"
+    echo "    (files without a frontmatter type: are not rows — the rebuild lists them; MEMORY.md, corrections.md, protocol.md, session-log.md and training-primer.md are expected there)"
 fi
 echo ""
 

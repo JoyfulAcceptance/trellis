@@ -160,7 +160,8 @@ health:
   like) are reported as unmapped keys and not yet honoured.
 - **Untyped and unindexed files are named.** The rebuild prints which memory
   files carry no `type:` and so are not rows (MEMORY.md, corrections.md,
-  protocol.md and session-log.md are expected there), which frontmatter keys
+  protocol.md, session-log.md and training-primer.md are expected there),
+  which frontmatter keys
   reach no column, and which table columns are empty across every row.
 - **A refusing rebuild is a feature.** If `rebuild-trellis-db.sh` exits 2 or 3
   it says why, keeps the previous database, and names the fix or the escape

@@ -36,7 +36,9 @@ and reports seven classes, one section each, every file in exactly one of the
 first three:
 
 - **A** not in `memory/MEMORY.md` — unindexed, unrecallable from the hot cache
-- **B** no `type:` in its frontmatter — never becomes a database row
+- **B** no `type:` in its frontmatter — never becomes a database row (the
+  five protocol files — `MEMORY.md`, `corrections.md`, `protocol.md`,
+  `session-log.md`, `training-primer.md` — are expected here and never reported)
 - **C** frontmatter not on line 1 — a `type:` the ingest cannot see
 - **D** CRLF line endings — information only, nothing is stranded
 - **E** dangling `[[wiki-links]]` — a warning, nothing is stranded (links

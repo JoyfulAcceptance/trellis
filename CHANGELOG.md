@@ -27,15 +27,19 @@ coming from 0.5.x; `scripts/post-update.sh` now runs the audit for you. See
   with NEXT STEPS for the assistant; exit 1 when something is stranded;
   `--quiet` prints the summary line only; a new install prints
   `new install — nothing to audit`.
-- `lib/memory-files.sh` — the one definition of "unindexed" and of the four
+- `lib/memory-files.sh` — the one definition of "unindexed" and of the five
   protocol files (`MEMORY.md`, `corrections.md`, `protocol.md`,
-  `session-log.md`), shared by the fragmentation metric and the audit.
+  `session-log.md`, `training-primer.md`), shared by the fragmentation metric
+  and the audit. `training-primer.md` is on the list because the directives
+  read it by name, as they read `protocol.md`: it is a procedure, not a
+  memory, never a row — and a fresh blank-profile install must audit clean.
 
 ### Changed
 
 - **health-check.sh:** the fragmentation DO-NEXT names the fix — run
   `scripts/memory-audit.sh` — instead of asking for files it did not name;
-  `session-log.md` is a protocol file and no longer counts as unindexed.
+  `session-log.md` and `training-primer.md` are protocol files and no longer
+  count as unindexed.
 - **post-update.sh:** four steps — the memory audit is 3/4; NEXT STEPS gain
   "repair what the audit named, then rebuild".
 - **Directives:** Session Start step 6 — if fragmentation is HIGH, run the

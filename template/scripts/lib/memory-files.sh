@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # lib/memory-files.sh — which memory files are TYPED, i.e. carry a `type:`
 # line in their frontmatter and therefore must become a database row; which
-# are PROTOCOL files (never rows, never expected in the index); and which
+# are PROTOCOL files (five, never rows, never expected in the index); and which
 # are UNINDEXED (memory/MEMORY.md does not name them).
 #
 # One definition of each, sourced by rebuild-trellis-db.sh, health-check.sh,
@@ -65,11 +65,15 @@ count_untyped_memories() {
     list_untyped_memories "$1" | grep -c . || true
 }
 
-# --- the protocol files: MEMORY.md and its three companions ---------------
+# --- the protocol files: MEMORY.md and its four companions ----------------
 # These carry no type: and are never rows, and MEMORY.md cannot index itself.
-# ONE list, used by the fragmentation metric (health-check.sh) and by
-# memory-audit.sh's classes A and B, so the count and the names agree.
-MEMORY_PROTOCOL_FILES="MEMORY.md corrections.md protocol.md session-log.md"
+# training-primer.md is here because the directives read it BY NAME ("if
+# memory/training-primer.md exists and sessions < 10: read it"), exactly as
+# they read protocol.md — it is a procedure, not a memory, and a fresh
+# blank-profile install must audit clean. ONE list, used by the fragmentation
+# metric (health-check.sh) and by memory-audit.sh's classes A and B, so the
+# count and the names agree.
+MEMORY_PROTOCOL_FILES="MEMORY.md corrections.md protocol.md session-log.md training-primer.md"
 
 # memory_file_is_protocol NAME — exit 0 if the basename is a protocol file.
 memory_file_is_protocol() {
